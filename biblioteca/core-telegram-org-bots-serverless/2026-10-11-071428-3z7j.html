@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telegram Serverless</title>
+<style>
+:root{color-scheme:light dark}
+body{margin:0;font:16px/1.6 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;color:#1c1c1e;background:#fff}
+@media (prefers-color-scheme:dark){body{color:#f5f5f7;background:#111}a{color:#64d2ff}}
+main{max-width:46rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+header{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid #8884}
+header h1{margin:0 0 .5rem;font-size:1.9rem;line-height:1.2}
+header p{margin:0;font-size:.9rem;opacity:.7;overflow-wrap:anywhere}
+img,video{max-width:100%;height:auto}
+pre{overflow-x:auto;padding:.9rem 1rem;border-radius:.5rem;background:#8881;white-space:pre}
+code{font-family:ui-monospace,"JetBrains Mono",monospace;font-size:.9em}
+table{border-collapse:collapse;display:block;overflow-x:auto}
+th,td{border:1px solid #8884;padding:.35rem .6rem;text-align:left}
+blockquote{margin:1rem 0;padding:0 1rem;border-left:3px solid #8886}
+@media print{body{background:#fff;color:#000}pre{white-space:pre-wrap}a{color:#000}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Telegram Serverless</h1>
+<p>Fonte: <a href="https://core.telegram.org/bots/serverless">https://core.telegram.org/bots/serverless</a> · Extraído em 10 de outubro de 2026</p>
+</header>
+<article>
+<div id="readability-page-1" class="page"><div id="dev_page_content"><!-- scroll_nav -->
+
+<p>Telegram Serverless lets you run backend code for your bot and Mini App <strong>directly on Telegram's infrastructure</strong> — no servers to provision, no containers to keep alive, no scaling to think about. You write plain JavaScript modules, deploy them with a single command, and Telegram runs them in a fast, isolated V8 sandbox that sits right next to the Bot API and a built‑in database.</p>
+<p>If you have ever wired a bot to a VPS, a cloud function, or a hosting panel just to answer a <code>/start</code>, this is the part you no longer have to do.</p>
+<p><strong>On this page</strong> </p>
+<ul>
+<li><a href="#why-serverless">Why serverless</a></li>
+<li><a href="#getting-started">Getting started</a></li>
+<li><a href="#building-with-ai">Building with AI</a></li>
+<li><a href="#on-the-go-with-botfather">On the go with BotFather</a></li>
+<li><a href="#projects-and-modules">Projects &amp; modules</a> </li>
+<li><a href="#the-database">The database</a></li>
+<li><a href="#the-sdk">The SDK</a></li>
+<li><a href="#command-line-interface">CLI reference</a></li>
+</ul>
+<h3><a class="anchor" name="recent-changes" href="#recent-changes" id="recent-changes"><i class="anchor-icon"></i></a>Recent changes</h3>
+<h4><a class="anchor" name="october-6-2026" href="#october-6-2026" id="october-6-2026"><i class="anchor-icon"></i></a>October 6, 2026</h4>
+<ul>
+<li>Added <a href="#mini-app-front-end">Mini App hosting</a>. The build output of your Mini App's front‑end is deployed together with the bot and served at <code>https://app&lt;app_id&gt;.tgcloud.ai/</code>.</li>
+<li>Added <a href="#endpoints">endpoints</a>, the functions your Mini App calls with <a href="https://core.telegram.org/bots/webapps#serverless">Telegram.WebApp.Serverless.call</a>.</li>
+<li>Updated the <a href="#command-line-interface">CLI</a> to version 0.2.0.</li>
+<li>Added the project config file <a href="#mini-app-front-end">tgcloud.jsonc</a>.</li>
+<li>Project modules can now be imported by <a href="#the-module-system">relative path</a>, with the <code>.js</code> extension.</li>
+<li>All modules now live in the <code>tgcloud/</code> folder. Run <a href="#upgrade">npx tgcloud upgrade</a> once in a project created with an earlier version of the CLI.</li>
+</ul>
+<h3><a class="anchor" name="why-serverless" href="#why-serverless" id="why-serverless"><i class="anchor-icon"></i></a>Why serverless</h3>
+<p>A Telegram bot is, at heart, a program that reacts to updates. Traditionally you had to host that program somewhere that is always on, reachable, and secure — and then keep it that way. Telegram Serverless removes that layer entirely:</p>
+<ul>
+<li><strong>No infrastructure.</strong> There is no machine to rent, patch, or monitor. Your code runs on demand and scales with your bot automatically.</li>
+<li><strong>Batteries included.</strong> The Telegram Bot API, an SQLite‑backed database, and outbound HTTP are available to every module out of the box — nothing to install, no credentials to wire up.</li>
+<li><strong>Fast, isolated execution.</strong> Each invocation runs in a lightweight V8 isolate, close to Telegram's own systems, so calls to the Bot API and your database are quick and reliable.</li>
+<li><strong>A real developer workflow.</strong> A project lives in a folder on your machine under version control. You edit files, see exactly what changed, deploy atomically, and roll your database schema forward with reviewed migrations — the way you already work with everything else.</li>
+</ul>
+<h3><a class="anchor" name="the-mental-model" href="#the-mental-model" id="the-mental-model"><i class="anchor-icon"></i></a>The mental model</h3>
+<p>You work in <strong>three places</strong>, and they map cleanly onto each other:</p>
+<table class="table">
+<thead>
+<tr>
+<th>Where</th>
+<th>What lives there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Your project folder</td>
+<td>JavaScript modules — schema, shared code, update handlers, Mini App endpoints — and, if you have one, the Mini App's front‑end</td>
+</tr>
+<tr>
+<td>The cloud</td>
+<td>The deployed copy of those modules, your bot's database, and the Mini App's files</td>
+</tr>
+<tr>
+<td>The <code>tgcloud</code> CLI</td>
+<td>The bridge — it shows you differences and syncs them</td>
+</tr>
+</tbody>
+</table>
+<p>You never SSH into anything. You edit files locally, run <code>npx tgcloud push</code>, and the platform takes it from there. Your bot's traffic is handled by the deployed modules; your database persists between invocations.</p>
+<p>A project has just four kinds of code, all inside one <code>tgcloud/</code> folder:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">tgcloud/
+├─ endpoints/  <span class="hljs-comment"># functions your Mini App calls</span>
+├─ handlers/   <span class="hljs-comment"># functions that react to Telegram update types</span>
+├─ lib/        <span class="hljs-comment"># shared code you import from anywhere</span>
+└─ schema.js   <span class="hljs-comment"># your database tables</span></code></pre>
+<p>When an update arrives — a message, a button press, an inline query — Telegram routes it to the matching handler (<code>handlers/message.js</code>, <code>handlers/callback_query.js</code>, …) and calls its default export. That function talks to the Bot API and the database through the SDK, and returns. That is the whole loop. An update with no matching handler is simply ignored, so you add only the handlers you need.</p>
+<p>A Mini App is optional. If your bot has one, its front‑end lives in the same project, next to <code>tgcloud/</code>. Serverless hosts its build output and runs the <code>endpoints/</code> it calls. See <a href="#mini-app-front-end">Mini App front‑end</a>.</p>
+<h3><a class="anchor" name="quick-demo" href="#quick-demo" id="quick-demo"><i class="anchor-icon"></i></a>Quick demo</h3>
+<p>Here is a complete, working demo bot. It replies to every message and remembers how many it has seen from each chat.</p>
+<p><code>tgcloud/schema.js</code></p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { table, integer } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> counters = <span class="hljs-title function_">table</span>(<span class="hljs-string">'counters'</span>, {
+  <span class="hljs-attr">chatId</span>: <span class="hljs-title function_">integer</span>(<span class="hljs-string">'chat_id'</span>).<span class="hljs-title function_">primaryKey</span>(),
+  <span class="hljs-attr">seen</span>:   <span class="hljs-title function_">integer</span>(<span class="hljs-string">'seen'</span>).<span class="hljs-title function_">notNull</span>().<span class="hljs-title function_">default</span>(<span class="hljs-number">0</span>),
+});</code></pre>
+<p><code>tgcloud/handlers/message.js</code></p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { api, db } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+<span class="hljs-keyword">import</span> { sql } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+<span class="hljs-keyword">import</span> { counters } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> (<span class="hljs-params">message</span>) {
+  <span class="hljs-keyword">const</span> chatId = message.<span class="hljs-property">chat</span>.<span class="hljs-property">id</span>;
+
+  <span class="hljs-comment">// Insert the counter, or bump it if this chat already has one — and get the</span>
+  <span class="hljs-comment">// resulting row back in the same statement via .returning().</span>
+  <span class="hljs-keyword">const</span> [row] = <span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(counters)
+    .<span class="hljs-title function_">values</span>({ chatId, <span class="hljs-attr">seen</span>: <span class="hljs-number">1</span> })
+    .<span class="hljs-title function_">onConflictDoUpdate</span>({
+      <span class="hljs-attr">target</span>: counters.<span class="hljs-property">chatId</span>,
+      <span class="hljs-attr">set</span>: { <span class="hljs-attr">seen</span>: sql<span class="hljs-string">`<span class="hljs-subst">${counters.seen}</span> + 1`</span> },
+    })
+    .<span class="hljs-title function_">returning</span>()
+    .<span class="hljs-title function_">run</span>();
+
+  <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendMessage</span>({
+    <span class="hljs-attr">chat_id</span>: chatId,
+    <span class="hljs-attr">text</span>: <span class="hljs-string">`Hello! I've seen <span class="hljs-subst">${row.seen}</span> message(s) from you.`</span>,
+  });
+}</code></pre>
+<p>Deploy it:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud push       <span class="hljs-comment"># upload the modules</span>
+npx tgcloud migrate    <span class="hljs-comment"># create the `counters` table</span></code></pre>
+<p>That's a live bot with persistent state and no server. Everything in it — <code>api</code>, <code>db</code>, the <code>table()</code> DSL — is described in the sections below.</p>
+<p>Serverless is a general backend for Telegram bots and Mini Apps, not a template for one kind of app. It is ideal for:</p>
+<ul>
+<li><strong>Conversational AI Bots</strong> that need to store per‑user state in a database.</li>
+<li><strong>Mini App Backends</strong> that store user data and serve dynamic content.</li>
+<li><strong>Games and Tools</strong> — including leaderboards, quizzes and more.</li>
+<li><strong>Automations and Integrations</strong> that call third‑party HTTP APIs and push results into chats.</li>
+</ul>
+<h3><a class="anchor" name="getting-started" href="#getting-started" id="getting-started"><i class="anchor-icon"></i></a>Getting started</h3>
+<p>This walkthrough takes you from an empty folder to a live bot that answers messages and stores data. It assumes you have <a href="https://nodejs.org/">Node.js</a> 18 or newer installed and a bot registered with <a href="https://t.me/BotFather">@BotFather</a>. By the end you will have used every command you need day to day: <code>push</code>, <code>migrate</code>, <code>run</code>, and <code>status</code>.</p>
+<blockquote>
+<p><strong>Before anything else, switch Serverless on.</strong> In <a href="https://t.me/BotFather">@BotFather</a>, open your bot → <strong>Serverless</strong> and turn it on. That turns the feature on for this bot and unlocks its CLI access token, handlers, library, and database.</p>
+</blockquote>
+<h4><a class="anchor" name="1-create-a-project" href="#1-create-a-project" id="1-create-a-project"><i class="anchor-icon"></i></a>1. Create a project</h4>
+<p>The fastest way to start is the project creator, which scaffolds a project and installs the CLI into it:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npm create @tgcloud/bot example_bot
+<span class="hljs-built_in">cd</span> example_bot</code></pre>
+<p>The argument is the target folder: pass <code>.</code> to scaffold into the current folder, or any path. It works in an existing folder too and never overwrites files you already have.</p>
+<p>This gives you a ready‑to‑edit project:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">example_bot/
+├─ tgcloud/             <span class="hljs-comment"># everything the platform runs</span>
+│  ├─ handlers/
+│  │  └─ message.js     <span class="hljs-comment"># a starter message handler (echoes text back)</span>
+│  ├─ lib/              <span class="hljs-comment"># your shared modules go here (empty to start)</span>
+│  └─ schema.js         <span class="hljs-comment"># your database tables</span>
+├─ docs/
+│  └─ tgcloud-sdk.md    <span class="hljs-comment"># SDK reference (for you and your AI tools)</span>
+├─ AGENTS.md            <span class="hljs-comment"># orientation for AI coding assistants</span>
+├─ package.json
+└─ tgcloud.jsonc        <span class="hljs-comment"># project config</span></code></pre>
+<p>The scaffolded files are self‑documenting — each one contains commented examples of what you can do next.</p>
+<p>The CLI installs into the project as a local dev‑dependency, so you run it with <code>npx tgcloud &lt;command&gt;</code> (npx finds the copy in your project's <code>node_modules</code>), or through the <code>npm run</code> shortcuts the scaffold adds to <code>package.json</code> (<code>npm run deploy</code>, <code>npm run status</code>). By default there is no global <code>tgcloud</code> on your <code>PATH</code>.</p>
+<p>You can also install it globally — <code>npm install -g @tgcloud/cli</code> — if you'd rather type a bare <code>tgcloud</code> from anywhere. That's handy for running <code>tgcloud init</code> in any empty folder, and it's what shell tab‑completion needs. Either way you get the same project.</p>
+<blockquote>
+<p><strong>Building a Mini App?</strong> Start from its front‑end instead. Create it with your usual tool, then run the project creator in that folder. See <a href="#mini-app-front-end">Mini App front‑end</a>.</p>
+</blockquote>
+<h4><a class="anchor" name="2-link-your-bot" href="#2-link-your-bot" id="2-link-your-bot"><i class="anchor-icon"></i></a>2. Link your bot</h4>
+<p>Every project is tied to one bot. Connect them with <code>login</code>, which asks for your CLI access token (<a href="https://t.me/BotFather">@BotFather</a> → your bot → Serverless → CLI Access → Access token — a separate token from your <a href="https://core.telegram.org/bots/api#authorizing-your-bot">bot's API token</a>) and stores it locally:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud login</code></pre>
+<p>The token has the form <code>app&lt;id&gt;:&lt;secret&gt;</code>. The CLI keeps it in <code>.tgcloud/</code>, which is git‑ignored, and never prints the secret part. Login is the only time you are asked for it — see <a href="#authentication">Authentication</a> for how tokens are resolved in CI.</p>
+<h4><a class="anchor" name="3-look-around" href="#3-look-around" id="3-look-around"><i class="anchor-icon"></i></a>3. Look around</h4>
+<p>Two commands tell you where things stand at any moment, both fully offline:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud status     <span class="hljs-comment"># what has changed locally vs. the deployed copy</span>
+npx tgcloud diff       <span class="hljs-comment"># the line‑by‑line changes</span></code></pre>
+<p>Right after <code>init</code> everything is new and nothing is deployed yet. <code>status</code> shows the starter files waiting to go up.</p>
+<h4><a class="anchor" name="4-deploy" href="#4-deploy" id="4-deploy"><i class="anchor-icon"></i></a>4. Deploy</h4>
+<p>Send your modules to the cloud:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud push</code></pre>
+<p><code>push</code> uploads every changed module in one atomic batch and updates your local record of what the cloud now holds. Your bot is live: open it in Telegram and send it a message — the starter handler echoes it back.</p>
+<blockquote>
+<p><strong>Deploying never touches your database.</strong> Pushing code and changing your database schema are deliberately separate steps, so a code deploy can never surprise you with a data migration. That is what the next step is for.</p>
+</blockquote>
+<h4><a class="anchor" name="5-add-a-database-table" href="#5-add-a-database-table" id="5-add-a-database-table"><i class="anchor-icon"></i></a>5. Add a database table</h4>
+<p>Let's make the bot remember something. Open <code>tgcloud/schema.js</code> and declare a table:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { table, integer, text, sql } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> messages = <span class="hljs-title function_">table</span>(<span class="hljs-string">'messages'</span>, {
+  <span class="hljs-attr">id</span>:      <span class="hljs-title function_">integer</span>(<span class="hljs-string">'id'</span>).<span class="hljs-title function_">primaryKey</span>({ <span class="hljs-attr">autoIncrement</span>: <span class="hljs-literal">true</span> }),
+  <span class="hljs-attr">chatId</span>:  <span class="hljs-title function_">integer</span>(<span class="hljs-string">'chat_id'</span>).<span class="hljs-title function_">notNull</span>(),
+  <span class="hljs-attr">text</span>:    <span class="hljs-title function_">text</span>(<span class="hljs-string">'text'</span>),
+  <span class="hljs-attr">created</span>: <span class="hljs-title function_">integer</span>(<span class="hljs-string">'created_at'</span>, { <span class="hljs-attr">mode</span>: <span class="hljs-string">'timestamp'</span> }).<span class="hljs-title function_">default</span>(sql<span class="hljs-string">`(unixepoch())`</span>),
+});</code></pre>
+<p>Deploy the schema, then apply it to the database:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud push       <span class="hljs-comment"># uploads the new schema</span>
+npx tgcloud migrate    <span class="hljs-comment"># creates the `messages` table</span></code></pre>
+<p><code>push</code> reports that the schema is out of sync and shows you the pending change, but applies nothing. <code>migrate</code> walks you through the change and, on your confirmation, creates the table. This two‑step model — and what happens with riskier changes like drops — is covered in <a href="#migrations">Migrations</a>.</p>
+<h4><a class="anchor" name="6-store-and-read-data" href="#6-store-and-read-data" id="6-store-and-read-data"><i class="anchor-icon"></i></a>6. Store and read data</h4>
+<p>Now use the table from your handler. Edit <code>tgcloud/handlers/message.js</code>:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { api, db } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+<span class="hljs-keyword">import</span> { eq } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+<span class="hljs-keyword">import</span> { messages } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> (<span class="hljs-params">message</span>) {
+  <span class="hljs-comment">// Save this message.</span>
+  <span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(messages)
+    .<span class="hljs-title function_">values</span>({ <span class="hljs-attr">chatId</span>: message.<span class="hljs-property">chat</span>.<span class="hljs-property">id</span>, <span class="hljs-attr">text</span>: message.<span class="hljs-property">text</span> })
+    .<span class="hljs-title function_">run</span>();
+
+  <span class="hljs-comment">// Count how many we've stored for this chat.</span>
+  <span class="hljs-keyword">const</span> count = <span class="hljs-keyword">await</span> db.$count(messages, <span class="hljs-title function_">eq</span>(messages.<span class="hljs-property">chatId</span>, message.<span class="hljs-property">chat</span>.<span class="hljs-property">id</span>));
+
+  <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendMessage</span>({
+    <span class="hljs-attr">chat_id</span>: message.<span class="hljs-property">chat</span>.<span class="hljs-property">id</span>,
+    <span class="hljs-attr">text</span>: <span class="hljs-string">`Saved. That's <span class="hljs-subst">${count}</span> message(s) from this chat so far.`</span>,
+  });
+}</code></pre>
+<p>Deploy the updated handler with <code>npx tgcloud push</code>, then send your bot a few messages and watch the count climb. The database persists between invocations — that's your bot's memory.</p>
+<h4><a class="anchor" name="7-test-without-deploying" href="#7-test-without-deploying" id="7-test-without-deploying"><i class="anchor-icon"></i></a>7. Test without deploying</h4>
+<p>You don't have to deploy to try a change. <code>npx tgcloud run</code> executes a handler on the platform using your <strong>local</strong> files, without publishing them:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud run handlers/message <span class="hljs-string">'{ chat: { id: 1 }, text: "hello" }'</span></code></pre>
+<p>The argument is the payload your handler receives — for <code>handlers/message</code>, a <a href="https://core.telegram.org/bots/api#message">Message</a> — written in <a href="https://json5.org/">JSON5</a> (so you can skip quoting keys). The command prints anything the handler logged with <code>console.*</code>, the return value, and how long it took. This is the tightest loop for iterating on logic — no deploy, no waiting for a real message.</p>
+<h4><a class="anchor" name="8-keep-in-sync" href="#8-keep-in-sync" id="8-keep-in-sync"><i class="anchor-icon"></i></a>8. Keep in sync</h4>
+<p>As you work, a handful of commands keep your local project and the cloud aligned: <code>npx tgcloud status</code> shows what changed, <code>npx tgcloud push</code> deploys, <code>npx tgcloud pull</code> brings your local project in line with the cloud, <code>npx tgcloud fetch</code> checks what is deployed without touching your files, and <code>npx tgcloud reset</code> discards local changes. </p>
+<blockquote>
+<p>If two people (or two machines) deploy to the same bot, the platform detects the conflict and <code>push</code> stops to let you <code>pull</code> first — you can never silently overwrite someone else's work. See <a href="#staying-in-sync">Staying in sync</a>.</p>
+</blockquote>
+<h3><a class="anchor" name="building-with-ai" href="#building-with-ai" id="building-with-ai"><i class="anchor-icon"></i></a>Building with AI</h3>
+<p>Prefer to build with an AI assistant — or is the only coder on your team an AI? You can still ship a bot. We've taken a first step to make an AI agent feel at home in a project: every new one is scaffolded with an <code>AGENTS.md</code> and a <code>docs/tgcloud-sdk.md</code> reference that agentic coding tools read automatically. </p>
+<p>Together with a small, self‑contained runtime — one SDK, no npm packages to wrangle — that gives the assistant a running start on the conventions generic codegen tends to miss here: relative imports with <code>.js</code>, no foreign keys, every <code>db</code> call is async, one handler per update type, and the two‑step <code>push</code>/<code>migrate</code> flow.</p>
+<p>Try it:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npm create @tgcloud/bot my-bot
+<span class="hljs-built_in">cd</span> my-bot
+opencode            <span class="hljs-comment"># or Claude Code, Cursor, … — any agent that reads AGENTS.md</span></code></pre>
+<p>Then just ask, in plain language:</p>
+<blockquote>
+<p>Write a bot that remembers each person's to‑do list — add an item when they send text, and show the whole list when they send /list.</p>
+</blockquote>
+<p>The assistant edits <code>schema.js</code> and your handlers for you; you review, test a change instantly with <code>npx tgcloud run</code>, then go live with <code>npx tgcloud push</code> and <code>npx tgcloud migrate</code>. <code>AGENTS.md</code> is part of your project — edit it as the bot grows so the guidance stays accurate.</p>
+<h3><a class="anchor" name="on-the-go-with-botfather" href="#on-the-go-with-botfather" id="on-the-go-with-botfather"><i class="anchor-icon"></i></a>On the go with BotFather</h3>
+<p>Down to just your phone? The whole project lives in <a href="https://t.me/BotFather">@BotFather</a> too — open your bot → <strong>Serverless</strong> and you get everything the CLI manages, on a touchscreen:</p>
+<ul>
+<li><strong>Handlers</strong> — create, edit, and test‑run update handlers; BotFather keeps the webhook in sync with the handlers you have (the same <em>In sync</em> / <em>Out of sync</em> the CLI reports).</li>
+<li><strong>Endpoints</strong> — the functions your Mini App calls.</li>
+<li><strong>Library</strong> — your shared <code>lib/</code> modules.</li>
+<li><strong>Database</strong> — edit <code>schema.js</code> in the same Drizzle‑like syntax, review pending changes, and apply them; <strong>Save</strong> deploys.</li>
+<li><strong>Mini App Files</strong> — the front‑end your users open in Telegram.</li>
+<li><strong>CLI Access</strong> — grab the CLI access token here when you're back at a keyboard.</li>
+</ul>
+<p>It's one and the same cloud project, so you can start a handler on your phone and <code>npx tgcloud pull</code> it to your laptop later — nothing is tied to a single client. Running a handler even shows its <strong>Console</strong> output right in the chat, just like <a href="#run"><code>npx tgcloud run</code></a>.</p>
+<h3><a class="anchor" name="projects-and-modules" href="#projects-and-modules" id="projects-and-modules"><i class="anchor-icon"></i></a>Projects and modules</h3>
+<p>A serverless project is an ordinary folder under version control. Everything the platform runs sits in one folder, <code>tgcloud/</code>; the rest of the project is yours — a mini‑app front‑end, config, docs. There is no build step for the bot, no <code>node_modules</code> at runtime, and no server entry point.</p>
+<h4><a class="anchor" name="anatomy-of-a-project" href="#anatomy-of-a-project" id="anatomy-of-a-project"><i class="anchor-icon"></i></a>Anatomy of a project</h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">example_bot/
+├─ tgcloud/             <span class="hljs-comment"># the deployed part — nothing else is</span>
+│  ├─ handlers/         <span class="hljs-comment"># update handlers — flat, one level only</span>
+│  │  ├─ message.js
+│  │  └─ callback_query.js
+│  ├─ endpoints/        <span class="hljs-comment"># functions your Mini App calls — flat, one level only</span>
+│  │  └─ getProfile.js
+│  ├─ lib/              <span class="hljs-comment"># shared modules; subdirectories allowed</span>
+│  │  ├─ reply.js
+│  │  └─ internal/util.js
+│  └─ schema.js         <span class="hljs-comment"># database schema — one file</span>
+└─ .tgcloud/            <span class="hljs-comment"># CLI state, git‑ignored</span></code></pre>
+<p>Only <code>.js</code> files inside <code>tgcloud/</code> — <code>schema.js</code>, <code>lib/</code>, <code>handlers/</code>, <code>endpoints/</code> — are <strong>deployed</strong>. Everything else — Markdown, config files, the <code>.tgcloud/</code> folder, anything outside <code>tgcloud/</code> — stays on your machine. Module names are relative to <code>tgcloud/</code>. The file <code>tgcloud/handlers/message.js</code> is the module <code>handlers/message</code>, and that is the name <code>npx tgcloud run</code> takes.</p>
+<blockquote>
+<p><strong>Upgrading from an older project?</strong> Projects created before CLI 0.2.0 kept <code>schema.js</code>, <code>lib/</code> and <code>handlers/</code> at the project root. Run <a href="#upgrade"><code>npx tgcloud upgrade</code></a> once to move them into <code>tgcloud/</code>.</p>
+</blockquote>
+<p><strong><code>schema.js</code></strong> — your database. It declares tables as named exports using the schema DSL and lives in <code>tgcloud/</code> as a single file. It is deployed like any other module, but deploying it never changes the database — schema changes are applied separately with <code>npx tgcloud migrate</code>. See <a href="#the-database">The database</a>.</p>
+<p><strong><code>lib/</code></strong> — shared code, anything you want to reuse across handlers: pure helpers, database access layers, formatting, integrations with outside services. <code>lib/</code> is the only directory that may contain <strong>subdirectories</strong> (<code>lib/internal/util.js</code>, <code>lib/payments/stripe.js</code>), so you can organize a larger codebase however you like. Modules in <code>lib/</code> are never invoked directly by the platform; they exist to be imported by handlers and by each other.</p>
+<p><strong><code>handlers/</code></strong> — the entry points of your bot. Each file corresponds to one <strong>Telegram update type</strong>, and the platform routes each incoming update to the matching handler:</p>
+<table class="table">
+<thead>
+<tr>
+<th>File</th>
+<th>Handles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>handlers/message.js</code></td>
+<td>New incoming messages</td>
+</tr>
+<tr>
+<td><code>handlers/inline_query.js</code></td>
+<td>New incoming <a href="https://core.telegram.org/bots/api#inline-mode">inline</a> queries</td>
+</tr>
+<tr>
+<td><code>handlers/callback_query.js</code></td>
+<td>New incoming callback queries</td>
+</tr>
+<tr>
+<td>…</td>
+<td><em>any other Bot API update type</em></td>
+</tr>
+</tbody>
+</table>
+<p><code>handlers/</code> is <strong>flat</strong> — no subdirectories. A handler's <code>export default</code> is the function the platform calls (see <a href="#handlers">Handlers</a>).</p>
+<p>An update type is handled <strong>only if its handler file exists and is non‑empty</strong>. If there is no <code>handlers/&lt;type&gt;.js</code> — or the file is empty — updates of that type are ignored, and the platform runs nothing for them. So keep only the handlers you actually need: each one you add is another update type your bot wakes up to process, and leaving out the rest means Telegram doesn't spin up your code for updates you'd only discard anyway. </p>
+<blockquote>
+<p>To scaffold a new handler, run <a href="#add"><code>npx tgcloud add handlers/&lt;type&gt;</code></a>.</p>
+</blockquote>
+<p><strong><code>endpoints/</code></strong> — the server side of your Mini App. Each file is a function the Mini App calls by name, so <code>endpoints/getProfile.js</code> answers <code>POST /api/getProfile</code>. The platform checks that the call comes from a Telegram user inside your Mini App before your code runs, and hands you that user. <code>endpoints/</code> is <strong>flat</strong>, like <code>handlers/</code>. See <a href="#endpoints">Endpoints</a>.</p>
+<p><strong><code>.tgcloud/</code></strong> — machine‑local state managed entirely by the CLI, including your saved credentials. It is git‑ignored, and you should never read from or write to it by hand — use the CLI commands instead.</p>
+<h4><a class="anchor" name="the-module-system" href="#the-module-system" id="the-module-system"><i class="anchor-icon"></i></a>The module system</h4>
+<p>At runtime, a module can see exactly two things: <strong>the platform SDK</strong> and <strong>the other modules in your project</strong>. There are no npm packages, no filesystem, and no network except through the SDK's <code>fetch</code>.</p>
+<p>Import your own modules the way you would in any JavaScript project — by <strong>relative path, with the <code>.js</code> extension</strong> — and the SDK by its name:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-comment">// tgcloud/handlers/message.js</span>
+<span class="hljs-keyword">import</span> { users } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;              <span class="hljs-comment">//  the schema module</span>
+<span class="hljs-keyword">import</span> { addItem } <span class="hljs-keyword">from</span> <span class="hljs-string">'../lib/cart.js'</span>;          <span class="hljs-comment">//  a lib module</span>
+<span class="hljs-keyword">import</span> { format } <span class="hljs-keyword">from</span> <span class="hljs-string">'../lib/internal/fmt.js'</span>;  <span class="hljs-comment">//  nested lib module</span>
+<span class="hljs-keyword">import</span> { db, api, fetch } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;              <span class="hljs-comment">//  the platform SDK</span></code></pre>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-comment">// tgcloud/lib/cart.js</span>
+<span class="hljs-keyword">import</span> { format } <span class="hljs-keyword">from</span> <span class="hljs-string">'./internal/fmt.js'</span>;        <span class="hljs-comment">//  a neighbour</span>
+<span class="hljs-keyword">import</span> { users } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;</code></pre>
+<p>A relative import must end in <code>.js</code> and can't lead outside <code>tgcloud/</code>:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { users } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema'</span>;       <span class="hljs-comment">//  add the .js</span>
+<span class="hljs-keyword">import</span> config <span class="hljs-keyword">from</span> <span class="hljs-string">'../../config.js'</span>;    <span class="hljs-comment">//  outside tgcloud/</span>
+<span class="hljs-keyword">import</span> { z } <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;                 <span class="hljs-comment">//  no npm packages</span></code></pre>
+<p>Every module also has a <strong>name</strong> — its path inside <code>tgcloud/</code> without the extension, such as <code>schema</code>, <code>lib/cart</code> or <code>handlers/message</code>. That name is what <code>npx tgcloud run</code> and the CLI's output use, and a module can be imported by it as well (<code>from 'lib/cart'</code>, no extension). Prefer relative imports in your code. They are what your editor understands — jump‑to‑definition, autocomplete, rename.</p>
+<p>What's available at runtime is exactly two things: <strong><code>sdk</code></strong> and its submodules (<code>sdk/db</code>, <code>sdk/api</code>, <code>sdk/fetch</code>) — the whole platform surface, see <a href="#the-sdk">The SDK</a> — and <strong>your own modules</strong> in <code>tgcloud/</code>. That's the complete list. If your code <code>import</code>s anything else, it won't resolve. This constraint is what keeps modules fast to load and safe to run.</p>
+<h4><a class="anchor" name="handlers" href="#handlers" id="handlers"><i class="anchor-icon"></i></a>Handlers</h4>
+<p>A handler is a module in <code>handlers/</code> whose default export the platform invokes when a matching update arrives.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-comment">// handlers/message.js</span>
+<span class="hljs-keyword">import</span> { api } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> (<span class="hljs-params">message</span>) {
+  <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendMessage</span>({
+    <span class="hljs-attr">chat_id</span>: message.<span class="hljs-property">chat</span>.<span class="hljs-property">id</span>,
+    <span class="hljs-attr">text</span>: <span class="hljs-string">`You said: <span class="hljs-subst">${message.text ?? <span class="hljs-string">'(no text)'</span>}</span>`</span>,
+  });
+}</code></pre>
+<p>A handler receives the update's <strong>payload</strong> as its argument — the platform unwraps the Telegram <a href="https://core.telegram.org/bots/api#update">Update</a> for you. <code>handlers/message.js</code> gets the <a href="https://core.telegram.org/bots/api#message">Message</a> (i.e. <code>update.message</code>); <code>handlers/callback_query.js</code> gets the <a href="https://core.telegram.org/bots/api#callbackquery">CallbackQuery</a>; and so on. The handler's <strong>second argument</strong> is a per‑invocation context object, <code>ctx</code>. It carries the raw <code>Update</code> as <code>ctx.update</code> — reach for it when you need something outside the payload, like <code>update_id</code>.</p>
+<p>A handler can be <code>async</code> (usually is) and may return a value. It reaches the Bot API, the database, and outbound HTTP through the SDK.</p>
+<p>You don't need a real update to test a handler. <code>npx tgcloud run</code> executes it on the platform with the payload you supply and your current local code:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud run handlers/message <span class="hljs-string">'{ chat: { id: 1 }, text: "hi" }'</span></code></pre>
+<p>The argument is the payload — the same object your handler receives — in JSON5. To supply the handler's <code>ctx</code> (its second argument), add <code>--ctx</code>, e.g. <code>--ctx '{ update: { update_id: 1 } }'</code>. This runs against your <strong>local</strong> files, so you can try changes before deploying them. See <a href="#run"><code>run</code></a>.</p>
+<h4><a class="anchor" name="endpoints" href="#endpoints" id="endpoints"><i class="anchor-icon"></i></a>Endpoints</h4>
+<p>An endpoint is a module in <code>endpoints/</code> that your <strong>Mini App</strong> calls — the place for anything the front‑end can't do on its own, like reading and writing the database, calling the Bot API, or talking to outside services with your secrets.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-comment">// endpoints/getProfile.js</span>
+<span class="hljs-keyword">import</span> { db, <span class="hljs-title class_">EndpointError</span> } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+<span class="hljs-keyword">import</span> { eq } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+<span class="hljs-keyword">import</span> { profiles } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> (<span class="hljs-params">input, ctx</span>) {
+  <span class="hljs-keyword">const</span> user = ctx.<span class="hljs-property">initData</span>.<span class="hljs-property">user</span>;
+  <span class="hljs-keyword">const</span> profile = <span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>().<span class="hljs-title function_">from</span>(profiles).<span class="hljs-title function_">where</span>(<span class="hljs-title function_">eq</span>(profiles.<span class="hljs-property">userId</span>, user.<span class="hljs-property">id</span>)).<span class="hljs-title function_">get</span>();
+  <span class="hljs-keyword">if</span> (!profile) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">EndpointError</span>(<span class="hljs-string">'Profile not found'</span>, { <span class="hljs-attr">userId</span>: user.<span class="hljs-property">id</span> });
+  <span class="hljs-keyword">return</span> profile;
+}</code></pre>
+<p>The first argument, <code>input</code>, is the JSON object the Mini App sent. The second, <code>ctx</code>, carries <strong><code>ctx.initData</code></strong> — the Mini App's <a href="https://core.telegram.org/bots/webapps#webappinitdata">init data</a> (<code>user</code>, <code>chat</code>, <code>start_param</code>, <code>auth_date</code>, …), already <strong>verified by the platform</strong>. It has the same shape as <code>Telegram.WebApp.initDataUnsafe</code> on the client, but here you can trust it. A call without valid init data is rejected with <code>401</code> before your code runs, so <code>ctx.initData.user</code> really is the person who opened your Mini App. Endpoints can only be called this way — from your bot's Mini App, by a Telegram user — so there is no public API to protect and no login to build.</p>
+<p>Whatever the endpoint returns is sent back as JSON. To refuse a call, <code>throw new EndpointError(description, parameters?)</code>. The Mini App gets the description and the <code>parameters</code> object as they are. If you need to branch on the kind of error in the front‑end, put a code in <code>parameters</code> — <code>{ code: 'OUT_OF_STOCK' }</code>. Any other exception is reported as a generic internal error, and the real message goes only to your logs, so internals never leak to the client.</p>
+<h5><a class="anchor" name="calling-an-endpoint-from-the-mini-app" href="#calling-an-endpoint-from-the-mini-app"><i class="anchor-icon"></i></a>Calling an endpoint from the Mini App</h5>
+<p>The Mini App calls an endpoint by name with <code>Telegram.WebApp.Serverless.call</code> from the official <a href="https://core.telegram.org/bots/webapps#serverless">Mini Apps SDK</a>, <code>telegram-web-app.js</code> — the script your Mini App already includes. It sends the init data for you and calls back with an error or the endpoint's result:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-title class_">Telegram</span>.<span class="hljs-property">WebApp</span>.<span class="hljs-property">Serverless</span>.<span class="hljs-title function_">call</span>(<span class="hljs-string">'getProfile'</span>, { <span class="hljs-attr">lang</span>: <span class="hljs-string">'en'</span> }, <span class="hljs-keyword">function</span> (<span class="hljs-params">err, profile</span>) {
+  <span class="hljs-keyword">if</span> (err) {
+    <span class="hljs-comment">// err.message — the description; err.parameters — what your EndpointError carried</span>
+    <span class="hljs-keyword">if</span> (err.<span class="hljs-property">type</span> === <span class="hljs-string">'ENDPOINT_ERROR'</span>) <span class="hljs-title function_">showMessage</span>(err.<span class="hljs-property">message</span>);
+    <span class="hljs-keyword">return</span>;
+  }
+  <span class="hljs-title function_">render</span>(profile);
+});</code></pre>
+<p>The input is optional and must be a plain object. Without it the call is <code>Serverless.call('getProfile', callback)</code>.</p>
+<p><code>err.type</code> is <code>'ENDPOINT_ERROR'</code> when your endpoint threw an <code>EndpointError</code>. Any other value means the platform refused the call or the endpoint failed unexpectedly, for example <code>'UNAUTHORIZED'</code> when the init data is missing or invalid.</p>
+<p>Endpoint names are like JavaScript identifiers — letters, digits and <code>_</code>, not starting with a digit (<code>getProfile</code>, <code>place_order</code>). Scaffold one with <a href="#add"><code>npx tgcloud add endpoints/&lt;name&gt;</code></a>, and try it without the Mini App with <a href="#run"><code>run</code></a>, passing the init data yourself:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud run endpoints/getProfile <span class="hljs-string">'{}'</span> --ctx <span class="hljs-string">'{ initData: { user: { id: 1, first_name: "Ann" } } }'</span></code></pre>
+<h4><a class="anchor" name="what-gets-deployed" href="#what-gets-deployed" id="what-gets-deployed"><i class="anchor-icon"></i></a>What gets deployed</h4>
+<p>When you <code>npx tgcloud push</code>, the CLI gathers every <code>.js</code> file under <code>schema.js</code>, <code>lib/</code>, <code>handlers/</code>, and <code>endpoints/</code>, and sends that exact set as your project's module space — together with the Mini App's build folder, if <code>tgcloud.jsonc</code> names one (see below). Anything present in the cloud but absent from your project is removed, so the deployed state always mirrors your folder — deletions included. Nothing outside <code>tgcloud/</code> is deployed as code — the rest of the project root is yours. Inside <code>tgcloud/</code>, a <code>.js</code> file that isn't in one of those locations (<code>tgcloud/util.js</code>, <code>tgcloud/helpers/x.js</code>) is flagged, so it doesn't silently go undeployed. Markdown, dotfiles, and <code>.tgcloud/</code> are never deployed.</p>
+<h4><a class="anchor" name="mini-app-front-end" href="#mini-app-front-end" id="mini-app-front-end"><i class="anchor-icon"></i></a>Mini App front-end</h4>
+<p>The project root is yours, and it is the natural place for your Mini App's front‑end — built with React, Vue, Svelte or plain HTML, by Vite or any other bundler. Serverless hosts its <strong>build output</strong> next to your bot. One <code>push</code> deploys the code and the static files together, and the app is served at <code>https://app&lt;app_id&gt;.tgcloud.ai/</code> (<code>push</code> prints the exact address — use it as your Mini App's URL in <a href="https://t.me/BotFather">@BotFather</a>).</p>
+<p>To start, create the front‑end first, with whatever tool you like, then add Serverless on top of it:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npm create vite@latest example_app   <span class="hljs-comment"># or create-vue, …</span>
+<span class="hljs-built_in">cd</span> example_app
+npm create @tgcloud/bot .</code></pre>
+<p>The project creator never overwrites your files. It adds the <code>tgcloud/</code> folder next to the front‑end, recognizes the build folder, and adds an <code>npm run deploy</code> script that builds the app and deploys it together with the bot.</p>
+<p>What gets hosted is set in <strong><code>tgcloud.jsonc</code></strong>, the project's config file at the project root:</p>
+<pre><code class="lang-jsonc">{
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
+  "static": {
+    "source": "dist",
+    "spa": true,
+    "immutable": ["/assets/*"],
+    "headers":   [{ "path": "/*", "set": { "Referrer-Policy": "no-referrer" } }],
+    "redirects": [{ "from": "/old", "to": "/new", "status": 301 }]
+  }
+}</code></pre>
+<p>Only <code>"source"</code> is required. It is the build folder, relative to the project root. The other keys of <code>"static"</code> configure how it is served (below). <code>init</code> creates <code>tgcloud.jsonc</code> for you. When it recognizes the front‑end, it also fills in <code>"source"</code>:</p>
+<table class="table">
+<thead>
+<tr>
+<th>Front‑end</th>
+<th><code>init</code> sets <code>"source"</code> to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vite — React, Vue, Svelte, Solid, …</td>
+<td><code>dist</code></td>
+</tr>
+<tr>
+<td>Next.js, Nuxt, SvelteKit, React Router, TanStack Start, Angular</td>
+<td>nothing — configure a static export first, then set <code>"source"</code> to its folder yourself</td>
+</tr>
+</tbody>
+</table>
+<p>With any other setup, set <code>"source"</code> to your build folder yourself.</p>
+<p>The <code>$schema</code> line gives your editor autocomplete and validation for every key. The file is JSON with comments and trailing commas allowed. If another tool of yours has to read it as plain JSON, name it <code>tgcloud.json</code> instead — then it must be strict JSON.</p>
+<p><strong>Build before you push.</strong> <code>push</code> uploads the folder exactly as it is on disk — except files and folders whose name starts with a dot, which are skipped — and never runs your build, so a plain <code>npx tgcloud push</code> after editing the front‑end would deploy the previous build. Use <code>npm run deploy</code> (it runs your <code>build</code> script, then <code>tgcloud push</code>), or build yourself first.</p>
+<p>The serving options:</p>
+<ul>
+<li><strong><code>spa</code></strong> — serve <code>index.html</code> for paths that don't exist and have no file extension, so a client‑side router works on reload. Paths with an extension still get <code>404</code>.</li>
+<li><strong><code>immutable</code></strong> — patterns for content‑hashed files (Vite's <code>/assets/*</code>) that browsers may cache for a year. Use it only for content‑hashed files. Any other file matched here would stay stale in browsers for a year, and there is no way to recall it.</li>
+<li><strong><code>headers</code></strong> — response headers for the paths a rule matches (an exact path, or a prefix ending in <code>/*</code>). A <code>null</code> value removes a header.</li>
+<li><strong><code>redirects</code></strong> — redirect rules, where the first match wins. An existing file always beats a rule. <code>status</code> is <code>301</code> unless you set it.</li>
+<li><strong><code>"static": "dist"</code></strong> — a shorthand for <code>{ "source": "dist" }</code> when you need nothing else.</li>
+<li><strong><code>"static": false</code></strong> — remove the deployed site on the next push. Deleting the key instead just stops this project from managing static files, and whatever is deployed stays.</li>
+</ul>
+<p>The site is served from the root of its own host, so your bundler's default <code>base</code> (<code>/</code>) is correct. Telegram Web opens Mini Apps in an iframe, so don't add <code>X-Frame-Options</code> or a restrictive <code>frame-ancestors</code> policy.</p>
+<p>The same host answers your <a href="#endpoints">endpoints</a> under <code>/api/</code> — that's where <code>Telegram.WebApp.Serverless.call('getProfile', …)</code> goes. Don't put files of your own under <code>/api/</code> in the build folder.</p>
+<h3><a class="anchor" name="the-database" href="#the-database" id="the-database"><i class="anchor-icon"></i></a>The database</h3>
+<p>Every bot gets its own database — an SQLite‑backed store that persists between invocations and is available to every module through <code>db</code>. You describe your tables in <code>schema.js</code> with a small, typed DSL; you read and write them with a fluent query builder; and you evolve them with reviewed migrations.</p>
+<blockquote>
+<p><strong>Know <a href="https://orm.drizzle.team/">Drizzle ORM</a>?</strong> Then you already know how to talk to the database here. The schema DSL and query builder follow Drizzle — the column builders, <code>select().from().where()</code>, the operators, <code>onConflictDoUpdate</code>, <code>.returning()</code>, and the <code>sql</code> tag all behave the way you'd expect, so reading and writing data is the familiar API you already use. You just import it from <code>sdk/db</code>, and a couple of platform specifics (most notably <a href="#no-foreign-keys">no foreign keys</a>) are pointed out where they come up.</p>
+</blockquote>
+<h4><a class="anchor" name="declaring-tables" href="#declaring-tables" id="declaring-tables"><i class="anchor-icon"></i></a>Declaring tables</h4>
+<p>Tables are <strong>named exports</strong> in <code>schema.js</code>. Calling <code>table()</code> builds a description at load time (it does not touch the database); the platform discovers the exported tables when you deploy <code>schema.js</code> and migrates the database to match.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { table, integer, text, boolean, json, index, sql } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> users = <span class="hljs-title function_">table</span>(<span class="hljs-string">'users'</span>, {
+  <span class="hljs-attr">id</span>:      <span class="hljs-title function_">integer</span>(<span class="hljs-string">'id'</span>).<span class="hljs-title function_">primaryKey</span>({ <span class="hljs-attr">autoIncrement</span>: <span class="hljs-literal">true</span> }),
+  <span class="hljs-attr">tgId</span>:    <span class="hljs-title function_">integer</span>(<span class="hljs-string">'tg_id'</span>).<span class="hljs-title function_">unique</span>(),
+  <span class="hljs-attr">name</span>:    <span class="hljs-title function_">text</span>(<span class="hljs-string">'name'</span>).<span class="hljs-title function_">notNull</span>(),
+  <span class="hljs-attr">lang</span>:    <span class="hljs-title function_">text</span>(<span class="hljs-string">'lang'</span>).<span class="hljs-title function_">default</span>(<span class="hljs-string">'en'</span>),
+  <span class="hljs-attr">isAdmin</span>: <span class="hljs-title function_">boolean</span>(<span class="hljs-string">'is_admin'</span>).<span class="hljs-title function_">default</span>(<span class="hljs-literal">false</span>),
+  <span class="hljs-attr">prefs</span>:   <span class="hljs-title function_">json</span>(<span class="hljs-string">'prefs'</span>),
+  <span class="hljs-attr">created</span>: <span class="hljs-title function_">integer</span>(<span class="hljs-string">'created_at'</span>, { <span class="hljs-attr">mode</span>: <span class="hljs-string">'timestamp'</span> }).<span class="hljs-title function_">default</span>(sql<span class="hljs-string">`(unixepoch())`</span>),
+}, <span class="hljs-function">(<span class="hljs-params">t</span>) =&gt;</span> ({
+  <span class="hljs-attr">createdIdx</span>: <span class="hljs-title function_">index</span>(<span class="hljs-string">'idx_users_created'</span>).<span class="hljs-title function_">on</span>(t.<span class="hljs-property">created</span>),
+}));</code></pre>
+<p><code>table(name, columns, extras?)</code>: </p>
+<ul>
+<li><strong><code>name</code></strong> is the SQL table name; </li>
+<li><strong><code>columns</code></strong> is a map of JS property → column definition; </li>
+<li><strong><code>extras</code></strong> is an optional callback <code>(t) =&gt; ({ … })</code> where <code>t</code> exposes the columns (<code>t.created</code> is a reference to that column) — declare indexes and table‑level constraints here.</li>
+</ul>
+<h5><a class="anchor" name="column-types" href="#column-types"><i class="anchor-icon"></i></a>Column types</h5>
+<table class="table">
+<thead>
+<tr>
+<th>Factory</th>
+<th>SQLite type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text()</code></td>
+<td>TEXT</td>
+<td></td>
+</tr>
+<tr>
+<td><code>integer()</code></td>
+<td>INTEGER</td>
+<td></td>
+</tr>
+<tr>
+<td><code>real()</code></td>
+<td>REAL</td>
+<td>alias <code>float()</code></td>
+</tr>
+<tr>
+<td><code>numeric()</code></td>
+<td>NUMERIC</td>
+<td></td>
+</tr>
+<tr>
+<td><code>blob()</code></td>
+<td>BLOB</td>
+<td>reads/writes <code>Uint8Array</code></td>
+</tr>
+<tr>
+<td><code>boolean()</code></td>
+<td>INTEGER</td>
+<td>stored as 0/1, read as <code>true</code>/<code>false</code></td>
+</tr>
+<tr>
+<td><code>json()</code></td>
+<td>TEXT</td>
+<td>auto <code>JSON.stringify</code> / <code>JSON.parse</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>The column name argument is optional — omit it and the JS key is used. The <code>mode</code> option controls how values convert between SQLite and JavaScript.</p>
+</blockquote>
+<table class="table">
+<thead>
+<tr>
+<th><code>mode</code></th>
+<th>Stored as</th>
+<th>JS value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>boolean</code></td>
+<td>INTEGER 0/1</td>
+<td><code>boolean</code></td>
+</tr>
+<tr>
+<td><code>json</code></td>
+<td>TEXT (JSON)</td>
+<td>any object/array</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>INTEGER (unix seconds)</td>
+<td><code>Date</code></td>
+</tr>
+<tr>
+<td><code>timestamp_ms</code></td>
+<td>INTEGER (unix ms)</td>
+<td><code>Date</code></td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td>BLOB</td>
+<td><code>Uint8Array</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>boolean()</code> and <code>json()</code> are shorthands for <code>integer(name, { mode: 'boolean' })</code> and <code>text(name, { mode: 'json' })</code>.</p>
+<p>A <code>blob()</code> reads and writes a <code>Uint8Array</code> — the runtime has no Node <code>Buffer</code> (and a <code>Buffer</code> is a <code>Uint8Array</code> subclass, so this is the portable base type). The <code>mode</code> above governs only how a value is <strong>encoded</strong>, independent of the column's storage type: so <code>blob('col', { mode: 'json' })</code> is the BLOB counterpart of <code>json()</code> — the same JSON encoding, kept in a BLOB column rather than TEXT.</p>
+<blockquote>
+<p><strong>TLDR:</strong> <code>blob()</code> uses <code>Uint8Array</code>. <code>mode</code> controls encoding, not storage, so <code>blob(..., { mode: 'json' })</code> stores JSON as a BLOB, while <code>json()</code> stores it as TEXT.</p>
+</blockquote>
+<h5><a class="anchor" name="column-modifiers" href="#column-modifiers"><i class="anchor-icon"></i></a>Column modifiers</h5>
+<p>Column modifiers chain onto a column.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-title function_">integer</span>(<span class="hljs-string">'id'</span>).<span class="hljs-title function_">primaryKey</span>({ <span class="hljs-attr">autoIncrement</span>: <span class="hljs-literal">true</span> })
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'name'</span>).<span class="hljs-title function_">notNull</span>()
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'tg'</span>).<span class="hljs-title function_">unique</span>()
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'lang'</span>).<span class="hljs-title function_">default</span>(<span class="hljs-string">'en'</span>)
+<span class="hljs-title function_">integer</span>(<span class="hljs-string">'created_at'</span>, { <span class="hljs-attr">mode</span>: <span class="hljs-string">'timestamp'</span> }).<span class="hljs-title function_">default</span>(sql<span class="hljs-string">`(unixepoch())`</span>)
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'slug'</span>).<span class="hljs-title function_">generatedAlwaysAs</span>(sql<span class="hljs-string">`lower(name)`</span>, { <span class="hljs-attr">mode</span>: <span class="hljs-string">'stored'</span> })  <span class="hljs-comment">// or 'virtual'</span>
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'email'</span>).<span class="hljs-title function_">deprecated</span>(<span class="hljs-string">'replaced by login'</span>)   <span class="hljs-comment">// marks the column for removal</span></code></pre>
+<blockquote>
+<p><code>.default()</code> on a <code>json()</code> column encodes the value for you; a <code>sql`…` </code> default is passed through verbatim. <code>.deprecated()</code> is terminal — see <a href="#migrations">Migrations</a>.</p>
+</blockquote>
+<h5><a class="anchor" name="indexes-and-constraints" href="#indexes-and-constraints"><i class="anchor-icon"></i></a>Indexes and constraints</h5>
+<p>Indexes and constraints are declared in the <code>extras</code> callback, where the columns are in scope.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-title function_">table</span>(<span class="hljs-string">'t'</span>, { <span class="hljs-comment">/* … */</span> }, <span class="hljs-function">(<span class="hljs-params">t</span>) =&gt;</span> ({
+  <span class="hljs-attr">uq</span>:     <span class="hljs-title function_">unique</span>(<span class="hljs-string">'uq_email'</span>).<span class="hljs-title function_">on</span>(t.<span class="hljs-property">email</span>),
+  <span class="hljs-attr">chk</span>:    <span class="hljs-title function_">check</span>(<span class="hljs-string">'chk_done'</span>, sql<span class="hljs-string">`<span class="hljs-subst">${t.done}</span> in (0, 1)`</span>),
+  <span class="hljs-attr">idx</span>:    <span class="hljs-title function_">index</span>(<span class="hljs-string">'idx_name'</span>).<span class="hljs-title function_">on</span>(t.<span class="hljs-property">col</span>),
+  <span class="hljs-attr">uidx</span>:   <span class="hljs-title function_">uniqueIndex</span>(<span class="hljs-string">'uidx_email'</span>).<span class="hljs-title function_">on</span>(t.<span class="hljs-property">email</span>),
+  <span class="hljs-attr">lower</span>:  <span class="hljs-title function_">index</span>(<span class="hljs-string">'idx_lower'</span>).<span class="hljs-title function_">on</span>(sql<span class="hljs-string">`lower(<span class="hljs-subst">${t.email}</span>)`</span>),          <span class="hljs-comment">// expression index</span>
+  <span class="hljs-attr">active</span>: <span class="hljs-title function_">index</span>(<span class="hljs-string">'idx_active'</span>).<span class="hljs-title function_">on</span>(t.<span class="hljs-property">userId</span>).<span class="hljs-title function_">where</span>(sql<span class="hljs-string">`done = 0`</span>),  <span class="hljs-comment">// partial index</span>
+}));</code></pre>
+<p>Table‑level modifiers chain after <code>table(...)</code>: <code>.strict()</code>, <code>.withoutRowid()</code>, <code>.deprecated('reason')</code>.</p>
+<h4><a class="anchor" name="no-foreign-keys" href="#no-foreign-keys" id="no-foreign-keys"><i class="anchor-icon"></i></a>No foreign keys</h4>
+<p>The runtime runs with <code>PRAGMA foreign_keys</code> <strong>off</strong>. A declared foreign key would be silently inert — no cascades, no orphan protection — which is worse than having none at all, so the DSL makes it impossible. Namely, <code>.references()</code> and table‑level <code>foreignKey()</code> <strong>throw when declared</strong>, and a schema that uses them will not deploy.</p>
+<p>You should model relationships with plain columns (<code>userId: integer('user_id')</code>) and enforce <strong>integrity</strong> in your application code: insert parents before children, delete children before parents, handle errors properly and sweep orphans with a <code>LEFT JOIN … WHERE parent.id IS NULL</code> when you need to.</p>
+<blockquote>
+<p>The absence of foreign keys is a deliberate constraint, not an oversight. Account for it early on when planning your bot.</p>
+</blockquote>
+<h4><a class="anchor" name="querying" href="#querying" id="querying"><i class="anchor-icon"></i></a>Querying</h4>
+<p><code>db</code> is a fluent query builder. <strong>Every query is asynchronous</strong> — the terminal methods (<code>.all()</code>, <code>.get()</code>, <code>.values()</code>, <code>.run()</code>) return Promises, so <strong>always</strong> <code>await</code>.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { db } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+<span class="hljs-keyword">import</span> { eq, and, desc, asc, count, sql } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+<span class="hljs-keyword">import</span> { users, todos } <span class="hljs-keyword">from</span> <span class="hljs-string">'../schema.js'</span>;
+
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>().<span class="hljs-title function_">from</span>(todos).<span class="hljs-title function_">all</span>();                          <span class="hljs-comment">// all rows</span>
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>().<span class="hljs-title function_">from</span>(todos).<span class="hljs-title function_">where</span>(<span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">id</span>, <span class="hljs-number">1</span>)).<span class="hljs-title function_">get</span>();   <span class="hljs-comment">// first row or null</span>
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>().<span class="hljs-title function_">from</span>(todos).<span class="hljs-title function_">values</span>();                       <span class="hljs-comment">// rows as value arrays</span>
+
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>().<span class="hljs-title function_">from</span>(todos)
+  .<span class="hljs-title function_">where</span>(<span class="hljs-title function_">and</span>(<span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">userId</span>, uid), <span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">done</span>, <span class="hljs-literal">false</span>)))
+  .<span class="hljs-title function_">orderBy</span>(<span class="hljs-title function_">desc</span>(todos.<span class="hljs-property">priority</span>), <span class="hljs-title function_">asc</span>(todos.<span class="hljs-property">id</span>))
+  .<span class="hljs-title function_">limit</span>(<span class="hljs-number">10</span>).<span class="hljs-title function_">offset</span>(<span class="hljs-number">20</span>)
+  .<span class="hljs-title function_">all</span>();
+
+<span class="hljs-comment">// custom projection: { alias: columnRef | sqlExpr | aggregate }</span>
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">select</span>({ <span class="hljs-attr">id</span>: todos.<span class="hljs-property">id</span>, <span class="hljs-attr">title</span>: todos.<span class="hljs-property">text</span>, <span class="hljs-attr">n</span>: <span class="hljs-title function_">count</span>() })
+  .<span class="hljs-title function_">from</span>(todos).<span class="hljs-title function_">groupBy</span>(todos.<span class="hljs-property">userId</span>).<span class="hljs-title function_">having</span>(sql<span class="hljs-string">`count(*) &gt; <span class="hljs-subst">${<span class="hljs-number">1</span>}</span>`</span>).<span class="hljs-title function_">all</span>();
+
+<span class="hljs-comment">// row count — a helper, not a builder terminal:</span>
+<span class="hljs-keyword">await</span> db.$count(todos);                        <span class="hljs-comment">// all rows</span>
+<span class="hljs-keyword">await</span> db.$count(todos, <span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">done</span>, <span class="hljs-literal">false</span>)); <span class="hljs-comment">// with a filter</span></code></pre>
+<ul>
+<li>Chainable: <code>.where()</code>, <code>.orderBy()</code>, <code>.limit()</code>, <code>.offset()</code>, <code>.groupBy()</code>, <code>.having()</code>, <code>.distinct()</code>. </li>
+<li>Terminals: <code>.all()</code>, <code>.get()</code>, <code>.values()</code>. </li>
+<li>Count rows with <code>db.$count(table, where?)</code> (or <code>count()</code> in a projection).</li>
+</ul>
+<p><strong>Insert, update, delete:</strong></p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(todos).<span class="hljs-title function_">values</span>({ <span class="hljs-attr">userId</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">text</span>: <span class="hljs-string">'Buy milk'</span> }).<span class="hljs-title function_">run</span>();
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(todos).<span class="hljs-title function_">values</span>([{ <span class="hljs-attr">text</span>: <span class="hljs-string">'A'</span> }, { <span class="hljs-attr">text</span>: <span class="hljs-string">'B'</span> }]).<span class="hljs-title function_">run</span>();   <span class="hljs-comment">// batch</span>
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(todos).<span class="hljs-title function_">values</span>({ <span class="hljs-attr">text</span>: <span class="hljs-string">'X'</span> }).<span class="hljs-title function_">returning</span>().<span class="hljs-title function_">run</span>();        <span class="hljs-comment">// RETURNING *</span>
+
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">insert</span>(users).<span class="hljs-title function_">values</span>({ <span class="hljs-attr">tgId</span>: <span class="hljs-number">42</span>, <span class="hljs-attr">name</span>: <span class="hljs-string">'Ann'</span> })
+  .<span class="hljs-title function_">onConflictDoUpdate</span>({ <span class="hljs-attr">target</span>: users.<span class="hljs-property">tgId</span>, <span class="hljs-attr">set</span>: { <span class="hljs-attr">name</span>: <span class="hljs-string">'Ann'</span> } }).<span class="hljs-title function_">run</span>();
+
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">update</span>(todos).<span class="hljs-title function_">set</span>({ <span class="hljs-attr">done</span>: <span class="hljs-literal">true</span> }).<span class="hljs-title function_">where</span>(<span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">id</span>, <span class="hljs-number">1</span>)).<span class="hljs-title function_">run</span>();
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">delete</span>(todos).<span class="hljs-title function_">where</span>(<span class="hljs-title function_">eq</span>(todos.<span class="hljs-property">id</span>, <span class="hljs-number">1</span>)).<span class="hljs-title function_">run</span>();</code></pre>
+<blockquote>
+<p>Note that a batch insert is one statement, so it's capped by SQLite's variable limit (<code>rows × columns</code>); if you go over it, the insert errors out — chunk it yourself.</p>
+</blockquote>
+<p><strong>Operators</strong> are imported from <code>sdk/db</code>:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> {
+  eq, ne, gt, gte, lt, lte,
+  like, notLike,
+  isNull, isNotNull, and, or, not,
+  between, notBetween, inArray, notInArray,
+  count, sum, avg, min, max,
+  asc, desc,
+} <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;</code></pre>
+<p><code>.where(a, b)</code> with multiple arguments is the same as <code>and(a, b)</code>. A comparison's second argument is a value by default, but may be another column or <code>sql`…` </code> — e.g. <code>eq(a.x, b.y)</code>. Aggregates (<code>count/sum/avg/min/max</code>) are sql fragments for a <code>.select({ … })</code> projection.</p>
+<p><strong>Raw SQL</strong> — when the builder isn't enough, drop to raw SQL. The mode is chosen by method: <code>db.run</code> for writes, <code>db.all</code> for many rows, <code>db.get</code> for one row, <code>db.values</code> for rows as positional arrays.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">await</span> db.<span class="hljs-title function_">run</span>(<span class="hljs-string">'UPDATE todos SET done = 1 WHERE id = :id'</span>, { <span class="hljs-string">':id'</span>: <span class="hljs-number">5</span> });
+<span class="hljs-comment">// → { rowsAffected: 3, lastInsertRowid: 0, rows: [] }</span>
+
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">all</span>(sql<span class="hljs-string">`SELECT * FROM todos WHERE done = <span class="hljs-subst">${<span class="hljs-literal">false</span>}</span>`</span>);
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">get</span>(sql<span class="hljs-string">`SELECT count(*) AS c FROM todos`</span>);
+<span class="hljs-keyword">await</span> db.<span class="hljs-title function_">values</span>(sql<span class="hljs-string">`SELECT id, text FROM todos`</span>);   <span class="hljs-comment">// → [[1, 'buy milk']]</span></code></pre>
+<p>A write resolves to a <strong>run result</strong> — <code>rowsAffected</code>, <code>lastInsertRowid</code>, and <code>rows</code>, which carry a <code>RETURNING</code> clause if the SQL had one. Reach for <code>db.values</code> when a query projects two columns of the same name (a join like <code>SELECT u.id, o.id</code>): <code>db.all</code> keys rows by column name, so the second <code>id</code> would overwrite the first.</p>
+<p>The <code>sql`…` </code> tag turns <code>${value}</code> into a bound parameter and <code>${table.column}</code> into an identifier, and splices nested <code>sql</code> fragments. Use <code>sql.raw('…')</code> for a literal with no parameters.</p>
+<blockquote>
+<p>Raw queries are <strong>not bound to a table</strong>, so their rows come back without mode conversion — a boolean is <code>0</code>/<code>1</code>, a JSON column is a string, a timestamp is a number. Only the table‑bound builder converts values.</p>
+</blockquote>
+<h4><a class="anchor" name="migrations" href="#migrations" id="migrations"><i class="anchor-icon"></i></a>Migrations</h4>
+<p>Your database changes as your bot grows. The platform keeps that safe by separating <strong>deploying code</strong> from <strong>changing data</strong>, and by classifying every schema change by how risky it is.</p>
+<p><strong>Deploying never touches the database.</strong> When you <code>npx tgcloud push</code> a changed <code>schema.js</code>, the platform records the new schema and tells you what the database <em>would</em> change — but applies nothing:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud push       <span class="hljs-comment"># deploy schema.js; reports pending DB changes</span>
+npx tgcloud migrate    <span class="hljs-comment"># review and apply them</span></code></pre>
+<p><code>npx tgcloud migrate</code> computes the difference between your schema and the live database and walks you through it. You are always asked before anything is applied. This means a routine code deploy can never trigger a data migration by accident.</p>
+<p>Each pending change carries a status that determines how <code>migrate</code> treats it:</p>
+<table class="table">
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>In <code>migrate</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>safe</strong></td>
+<td>Additive and non‑blocking — a new table, column, or index</td>
+<td>Applied together in one step, on confirmation</td>
+</tr>
+<tr>
+<td><strong>warning</strong></td>
+<td>Potentially destructive or slow — dropping something, or an index on a huge table</td>
+<td>Presented one at a time, each confirmed separately</td>
+</tr>
+<tr>
+<td><strong>manual</strong></td>
+<td>Can't be done automatically — e.g. changing a column's type</td>
+<td>Shown with guidance; you perform it by hand</td>
+</tr>
+<tr>
+<td><strong>undocumented</strong></td>
+<td>Exists in the database but not in your schema</td>
+<td>Shown for awareness; not applied</td>
+</tr>
+</tbody>
+</table>
+<p>Safe changes are quick and reversible in spirit, so they go through together. Each warning is a deliberate, individual confirmation — there is no “apply all” for destructive changes. </p>
+<p>Manual changes come with a reason and a suggested action. <code>migrate</code> ends with a summary: how many changes were applied, skipped, awaiting a manual fix, or not in your schema. </p>
+<blockquote>
+<p>See <a href="#migrate"><code>migrate</code></a> for the flags (<code>--dry-run</code>, <code>--safe</code>, <code>--yes</code>, <code>--local</code>).</p>
+</blockquote>
+<h5><a class="anchor" name="removing-things" href="#removing-things"><i class="anchor-icon"></i></a>Removing things</h5>
+<p>Deleting a table or column from <code>schema.js</code> does <strong>not</strong> drop it — that would make an accidental deletion catastrophic. To remove something, mark it deprecated:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-comment">// drop a column</span>
+<span class="hljs-title function_">text</span>(<span class="hljs-string">'email'</span>).<span class="hljs-title function_">deprecated</span>(<span class="hljs-string">'replaced by login'</span>)
+
+<span class="hljs-comment">// drop a whole table</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> oldSessions = <span class="hljs-title function_">table</span>(<span class="hljs-string">'old_sessions'</span>, { <span class="hljs-comment">/* … */</span> }).<span class="hljs-title function_">deprecated</span>(<span class="hljs-string">'unused'</span>);</code></pre>
+<p>On the next <code>migrate</code>, the deprecated object shows up as a <strong>warning</strong>‑status drop that you confirm individually. Once it's gone, remove the declaration.</p>
+<h5><a class="anchor" name="changing-a-column-39s-type" href="#changing-a-column-39s-type"><i class="anchor-icon"></i></a>Changing a column's type</h5>
+<p>Type changes are <strong>manual</strong> — SQLite can't always do them in place, and coercing existing values is a judgment call. <code>migrate</code> will show the change and its reasoning; perform it yourself with raw SQL (<code>db.run(...)</code>), typically by creating a new column or table, copying data, and swapping.</p>
+<h3><a class="anchor" name="the-sdk" href="#the-sdk" id="the-sdk"><i class="anchor-icon"></i></a>The SDK</h3>
+<p>At runtime a module has one library: <code>sdk</code>. It bundles the three things a bot backend needs — a database, the Telegram Bot API, and outbound HTTP — with nothing to install and no credentials to configure. The database (<code>db</code>) is covered in <a href="#the-database">The database</a>; this section covers <code>api</code>, <code>fetch</code>, and the <code>console</code> global.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { db, api, fetch, <span class="hljs-title class_">InputFile</span>, <span class="hljs-title class_">BotApiError</span>, <span class="hljs-title class_">EndpointError</span> } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;   <span class="hljs-comment">// the whole surface</span>
+<span class="hljs-comment">// or from submodules:</span>
+<span class="hljs-keyword">import</span> { table, integer, text, eq, sql } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/db'</span>;
+<span class="hljs-keyword">import</span> { api } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/api'</span>;
+<span class="hljs-keyword">import</span> { fetch } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk/fetch'</span>;</code></pre>
+<table class="table">
+<thead>
+<tr>
+<th>Import</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>db</code></td>
+<td>Database — query builder and schema DSL → <a href="#the-database">The database</a></td>
+</tr>
+<tr>
+<td><code>api</code></td>
+<td>Telegram Bot API — <code>api.sendMessage(...)</code> → <a href="#the-bot-api">below</a></td>
+</tr>
+<tr>
+<td><code>fetch</code></td>
+<td>Outbound HTTP → <a href="#http">below</a></td>
+</tr>
+<tr>
+<td><code>InputFile</code></td>
+<td>A file (bytes + name) to upload — works with both <code>api</code> and <code>fetch</code> → <a href="#files">Files</a></td>
+</tr>
+<tr>
+<td><code>EndpointError</code></td>
+<td>Refuse a Mini App's call with a message it can show → <a href="#endpoints">Endpoints</a></td>
+</tr>
+</tbody>
+</table>
+<p>Import your own project modules by relative path with the <code>.js</code> extension (<code>from '../schema.js'</code>, <code>from '../lib/cart.js'</code>). See <a href="#the-module-system">The module system</a>.</p>
+<h4><a class="anchor" name="the-bot-api" href="#the-bot-api" id="the-bot-api"><i class="anchor-icon"></i></a>The Bot API</h4>
+<p><code>api</code> gives you the entire <a href="https://core.telegram.org/bots/api">Telegram Bot API</a>. Call any method as <code>api.&lt;method&gt;(params)</code>. Every current — and future — Bot API method works with <strong>no SDK update</strong> required.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { api } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">const</span> me = <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">getMe</span>();                            <span class="hljs-comment">// → the unwrapped result</span>
+<span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendMessage</span>({ <span class="hljs-attr">chat_id</span>: id, <span class="hljs-attr">text</span>: <span class="hljs-string">'Hello!'</span> });
+<span class="hljs-keyword">await</span> api.<span class="hljs-title function_">editMessageText</span>({ chat_id, message_id, <span class="hljs-attr">text</span>: <span class="hljs-string">'Updated'</span> });
+<span class="hljs-keyword">await</span> api.<span class="hljs-title function_">answerCallbackQuery</span>({ callback_query_id, <span class="hljs-attr">text</span>: <span class="hljs-string">'Done'</span> });</code></pre>
+<p><strong>The response envelope is unwrapped.</strong> The Bot API normally wraps results in <code>{ ok: true, result: … }</code>. <code>api</code> returns the <code>result</code> directly — <code>getMe()</code> resolves to the user object, not to a wrapper. Parameters use the Bot API's own snake_case names (<code>chat_id</code>, <code>message_id</code>, <code>reply_markup</code>, …).</p>
+<p><strong>Failures throw <code>BotApiError</code>.</strong> When the Bot API returns <code>{ ok: false }</code>, the call throws a <code>BotApiError</code> instead of returning a falsy value, so you can't accidentally ignore it. The error carries <code>.code</code> (the Bot API <code>error_code</code>), <code>.description</code> (the human‑readable message), <code>.method</code> (which method failed), and <code>.parameters</code> (extra data such as <code>retry_after</code> on a 429, or <code>migrate_to_chat_id</code>). Catch it to handle an expected failure and rethrow the rest:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { api, <span class="hljs-title class_">BotApiError</span> } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">deleteMessage</span>({ chat_id, message_id });
+} <span class="hljs-keyword">catch</span> (e) {
+  <span class="hljs-keyword">if</span> (e <span class="hljs-keyword">instanceof</span> <span class="hljs-title class_">BotApiError</span> &amp;&amp; e.<span class="hljs-property">code</span> === <span class="hljs-number">400</span>) {
+    <span class="hljs-comment">// 400 = the message is already gone; that's fine here.</span>
+  } <span class="hljs-keyword">else</span> {
+    <span class="hljs-keyword">throw</span> e;
+  }
+}</code></pre>
+<h5><a class="anchor" name="files" href="#files"><i class="anchor-icon"></i></a>Files</h5>
+<p>Work with file <strong>bytes</strong>, not just <code>file_id</code>s — upload new files and download existing ones.</p>
+<p><strong>Upload — <code>InputFile</code>.</strong> Wrap raw bytes in an <code>InputFile</code> (a plain holder: bytes, a filename, and an optional MIME <code>type</code>) and pass it wherever a Bot API method expects a file:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { api, <span class="hljs-title class_">InputFile</span> } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">const</span> doc = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputFile</span>(bytes, <span class="hljs-string">'report.pdf'</span>, { <span class="hljs-attr">type</span>: <span class="hljs-string">'application/pdf'</span> });
+<span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendDocument</span>({ chat_id, <span class="hljs-attr">document</span>: doc });
+
+<span class="hljs-comment">// files nested inside params work too — e.g. an album:</span>
+<span class="hljs-keyword">await</span> api.<span class="hljs-title function_">sendMediaGroup</span>({ chat_id, <span class="hljs-attr">media</span>: [
+  { <span class="hljs-attr">type</span>: <span class="hljs-string">'photo'</span>, <span class="hljs-attr">media</span>: <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputFile</span>(a, <span class="hljs-string">'a.jpg'</span>, { <span class="hljs-attr">type</span>: <span class="hljs-string">'image/jpeg'</span> }) },
+  { <span class="hljs-attr">type</span>: <span class="hljs-string">'photo'</span>, <span class="hljs-attr">media</span>: <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputFile</span>(b, <span class="hljs-string">'b.jpg'</span>, { <span class="hljs-attr">type</span>: <span class="hljs-string">'image/jpeg'</span> }) },
+]});</code></pre>
+<p>The bytes are streamed to Telegram as a real multipart upload — the file isn't buffered whole into a single call to the platform — but Telegram's Bot API limits still apply: a bot can currently upload up to <strong>50 MB</strong> per file (and <strong>10 MB</strong> for a photo).</p>
+<p><strong>Download — by <code>file_id</code>.</strong> Two helpers pull a file's bytes back. The platform resolves the <code>file_id</code> for you (it runs <code>getFile</code> and fetches the content behind the scenes), so you never touch the bot token or a download URL:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">const</span> bytes = <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">getFileContent</span>(file_id);          <span class="hljs-comment">// → Uint8Array (the whole file)</span>
+
+<span class="hljs-keyword">const</span> { file, body } = <span class="hljs-keyword">await</span> api.<span class="hljs-title function_">getFileStream</span>(file_id);  <span class="hljs-comment">// stream it instead</span>
+file.<span class="hljs-property">file_unique_id</span>;                                      <span class="hljs-comment">// the getFile info</span>
+<span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> body) { <span class="hljs-comment">/* Uint8Array */</span> }      <span class="hljs-comment">// or buffer it: await stream.bytes()</span></code></pre>
+<blockquote>
+<p>Telegram's Bot API caps <code>getFile</code> downloads at <strong>20 MB</strong>, so that's the ceiling for both helpers.</p>
+</blockquote>
+<h4><a class="anchor" name="http" href="#http" id="http"><i class="anchor-icon"></i></a>HTTP</h4>
+<p><code>fetch</code> is a <code>fetch</code>‑like client for calling the outside world — third‑party APIs, webhooks, anything over HTTP.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { fetch } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">'https://api.example.com/users'</span>, {
+  <span class="hljs-attr">method</span>: <span class="hljs-string">'POST'</span>,
+  <span class="hljs-attr">headers</span>: { <span class="hljs-string">'Content-Type'</span>: <span class="hljs-string">'application/json'</span> },
+  <span class="hljs-attr">body</span>: <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>({ <span class="hljs-attr">name</span>: <span class="hljs-string">'Pavel'</span> }),
+});
+<span class="hljs-keyword">if</span> (!res.<span class="hljs-property">ok</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Error</span>(res.<span class="hljs-property">statusText</span>);
+<span class="hljs-keyword">const</span> data = <span class="hljs-keyword">await</span> res.<span class="hljs-title function_">json</span>();</code></pre>
+<p>The response mirrors the web platform: <code>res.status</code>, <code>res.statusText</code>, <code>res.ok</code> (true for 200–299), <code>res.url</code>, <code>res.headers</code> (<code>.get()</code>, <code>.has()</code>, <code>.keys()</code>, <code>.entries()</code>), and body readers <code>await res.json()</code> / <code>await res.text()</code>. </p>
+<blockquote>
+<p>You can also read the body incrementally as a <strong>stream</strong> — <code>for await (const chunk of res.body) { … }</code> — which is how you consume server‑sent events or token‑by‑token output from <strong>AI APIs</strong>.</p>
+</blockquote>
+<p>Body helpers set the matching <code>Content-Type</code> for you:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(url, { <span class="hljs-attr">method</span>: <span class="hljs-string">'POST'</span>, <span class="hljs-attr">body</span>: fetch.<span class="hljs-property">body</span>.<span class="hljs-title function_">json</span>({ <span class="hljs-attr">a</span>: <span class="hljs-number">1</span> }) }); <span class="hljs-comment">// application/json</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(url, { <span class="hljs-attr">method</span>: <span class="hljs-string">'POST'</span>, <span class="hljs-attr">body</span>: fetch.<span class="hljs-property">body</span>.<span class="hljs-title function_">form</span>({ <span class="hljs-attr">a</span>: <span class="hljs-number">1</span> }) }); <span class="hljs-comment">// x-www-form-urlencoded</span>
+<span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(url, { <span class="hljs-attr">method</span>: <span class="hljs-string">'POST'</span>, <span class="hljs-attr">body</span>: fetch.<span class="hljs-property">body</span>.<span class="hljs-title function_">text</span>(<span class="hljs-string">'hi'</span>) });     <span class="hljs-comment">// text/plain</span></code></pre>
+<p>Request bodies can also carry <strong>files and raw bytes</strong>: pass a <code>Uint8Array</code>, an <code>InputFile</code>, or a <code>FormData</code> (for <code>multipart/form-data</code>) as <code>body</code>, and the bytes are streamed out — so you can upload to a third‑party API the same way you send files to Telegram:</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">import</span> { fetch, <span class="hljs-title class_">FormData</span>, <span class="hljs-title class_">InputFile</span> } <span class="hljs-keyword">from</span> <span class="hljs-string">'sdk'</span>;
+
+<span class="hljs-keyword">const</span> form = <span class="hljs-keyword">new</span> <span class="hljs-title class_">FormData</span>();
+form.<span class="hljs-title function_">append</span>(<span class="hljs-string">'file'</span>, <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputFile</span>(bytes, <span class="hljs-string">'photo.jpg'</span>, { <span class="hljs-attr">type</span>: <span class="hljs-string">'image/jpeg'</span> }));
+form.<span class="hljs-title function_">append</span>(<span class="hljs-string">'caption'</span>, <span class="hljs-string">'from my bot'</span>);
+<span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">'https://api.example.com/upload'</span>, { <span class="hljs-attr">method</span>: <span class="hljs-string">'POST'</span>, <span class="hljs-attr">body</span>: form });</code></pre>
+<p>It otherwise behaves like the standard <code>fetch</code> you already know, with <strong>two constraints</strong>: </p>
+<ul>
+<li>The <strong>response</strong> is read as text — <code>await res.json()</code> / <code>await res.text()</code>, or streamed chunk‑by‑chunk with <code>res.body</code>.</li>
+<li>The <strong>total response is capped at 30 MB</strong>. That cap covers the whole response — streaming with <code>res.body</code> lets you process a large body incrementally, but it does not raise the limit.</li>
+</ul>
+<h4><a class="anchor" name="logging" href="#logging" id="logging"><i class="anchor-icon"></i></a>Logging</h4>
+<p>The standard global <code>console</code> is available — nothing to import, it's just there as in any JavaScript. Its output is captured and shown by <code>npx tgcloud run</code>, which makes it your primary debugging tool during development.</p>
+<pre><code class="lang-js hljs language-javascript" data-highlighted="yes"><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'processing'</span>, { <span class="hljs-attr">chatId</span>: id });   <span class="hljs-comment">// log / debug — plain</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">info</span>(<span class="hljs-string">'started'</span>);                     <span class="hljs-comment">// info  — blue</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">warn</span>(<span class="hljs-string">'rate limited'</span>);                <span class="hljs-comment">// warn  — yellow</span>
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(err);                          <span class="hljs-comment">// error — red, with a stack trace</span></code></pre>
+<p>Each line is tagged with the <code>[file:line]</code> it came from. <code>console.error</code> and <code>console.trace</code> append a full stack, while <code>console.warn</code> does not. When you <code>npx tgcloud run</code> a module, these lines are printed with a colored prefix per level, the time since the run started, and the origin — see <a href="#run"><code>run</code></a>.</p>
+<h3><a class="anchor" name="command-line-interface" href="#command-line-interface" id="command-line-interface"><i class="anchor-icon"></i></a>Command-line interface</h3>
+<p><code>tgcloud</code> is the bridge between your project folder and the cloud. It scaffolds projects, shows you what changed, deploys, runs modules, and applies database migrations. It needs <a href="https://nodejs.org/">Node.js</a> 18 or newer. Two ways to get it:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes"><span class="hljs-comment"># Recommended — create a project with the CLI installed into it:</span>
+npm create @tgcloud/bot example_bot
+
+<span class="hljs-comment"># Or install the CLI globally and init an empty folder:</span>
+npm install -g @tgcloud/cli
+tgcloud init</code></pre>
+<p>The npm package is <code>@tgcloud/cli</code>, and the command it installs is <code>tgcloud</code>. Every command works from any subfolder of your project.</p>
+<table class="table">
+<thead>
+<tr>
+<th>Command</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#init"><code>init</code></a></td>
+<td>Scaffold a new project in the current folder</td>
+</tr>
+<tr>
+<td><a href="#add"><code>add</code></a></td>
+<td>Scaffold a new module (a handler, an endpoint or a lib module)</td>
+</tr>
+<tr>
+<td><a href="#login"><code>login</code></a></td>
+<td>Link the project to a bot (saves the token)</td>
+</tr>
+<tr>
+<td><a href="#status"><code>status</code></a></td>
+<td>Show what changed locally vs. the cloud</td>
+</tr>
+<tr>
+<td><a href="#diff"><code>diff</code></a></td>
+<td>Show the line‑by‑line changes</td>
+</tr>
+<tr>
+<td><a href="#push"><code>push</code></a></td>
+<td>Deploy changed modules and the Mini App's build to the cloud</td>
+</tr>
+<tr>
+<td><a href="#migrate"><code>migrate</code></a></td>
+<td>Apply schema changes to the database</td>
+</tr>
+<tr>
+<td><a href="#run"><code>run</code></a></td>
+<td>Execute a module on the platform without deploying</td>
+</tr>
+<tr>
+<td><a href="#fetch"><code>fetch</code></a></td>
+<td>Check what is deployed, without changing local files</td>
+</tr>
+<tr>
+<td><a href="#pull"><code>pull</code></a></td>
+<td>Bring local files in line with the cloud</td>
+</tr>
+<tr>
+<td><a href="#reset"><code>reset</code></a></td>
+<td>Discard local changes; restore from the cloud state</td>
+</tr>
+<tr>
+<td><a href="#webhook"><code>webhook</code></a></td>
+<td>Inspect and re‑sync the platform‑managed webhook</td>
+</tr>
+<tr>
+<td><a href="#completion"><code>completion</code></a></td>
+<td>Print a shell completion script (bash/zsh/fish)</td>
+</tr>
+<tr>
+<td><a href="#upgrade"><code>upgrade</code></a></td>
+<td>Move a pre‑0.2.0 project layout into <code>tgcloud/</code></td>
+</tr>
+</tbody>
+</table>
+<h4><a class="anchor" name="authentication" href="#authentication" id="authentication"><i class="anchor-icon"></i></a>Authentication</h4>
+<p>A project is tied to one bot by its token, which has the form <code>app&lt;id&gt;:&lt;secret&gt;</code>. The <code>app&lt;id&gt;</code> part is public and may be printed; the secret never appears in logs or errors. </p>
+<p>The token is resolved in this order:</p>
+<ol>
+<li><strong><code>TGCLOUD_TOKEN</code></strong> environment variable — for CI; never written to disk.</li>
+<li><strong><code>.tgcloud/credentials</code></strong> — written by <a href="#login"><code>npx tgcloud login</code></a>.</li>
+<li>Neither → an error pointing you at <code>npx tgcloud login</code>.</li>
+</ol>
+<p>The CLI <strong>never prompts for a token mid‑command</strong>. Logging in is always the explicit <code>login</code> step. If a saved token becomes invalid, the CLI removes it and asks you to <code>login</code> again. </p>
+<h4><a class="anchor" name="init" href="#init" id="init"><i class="anchor-icon"></i></a><code>init</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud init</code></pre>
+<p>Scaffolds a new project in the current directory: the <code>tgcloud/</code> folder with <code>schema.js</code>, <code>lib/</code>, <code>handlers/</code> and a starter handler, plus <code>tgcloud.jsonc</code>, <code>AGENTS.md</code>, <code>docs/</code>, and the <code>.tgcloud/</code> state folder. Run it in the root of an existing front‑end project too — it adds the <code>tgcloud/</code> folder and the docs, and never overwrites your files. If it recognizes the front‑end, it also points <code>tgcloud.jsonc</code> at the build folder and adds a <code>deploy</code> script (build, then push) to your <code>package.json</code> — only if you don't have a <code>deploy</code> script already. See <a href="#mini-app-front-end">Mini App front‑end</a>.</p>
+<p><code>init</code> refuses to create a project <strong>inside another project</strong>. Re‑running it in a project's own root is fine and just adds anything missing. </p>
+<h4><a class="anchor" name="add" href="#add" id="add"><i class="anchor-icon"></i></a><code>add</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud add &lt;target&gt;</code></pre>
+<p>Scaffolds a single new module, wired up and ready to edit — a handler, an endpoint or a <code>lib/</code> module.</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud add handlers/callback_query   <span class="hljs-comment"># a new update handler</span>
+npx tgcloud add endpoints/getProfile      <span class="hljs-comment"># a new endpoint for the Mini App</span>
+npx tgcloud add lib/cart                  <span class="hljs-comment"># a new shared module</span></code></pre>
+<blockquote>
+<p>Note that <code>add</code> never overwrites an existing file. </p>
+</blockquote>
+<p>The <code>&lt;target&gt;</code> is the module's path (a trailing <code>.js</code> is optional). For <code>handlers/</code>, the name must be a Telegram update type. The platform advertises the valid set, so an invalid name is rejected up front. <code>handlers/</code> and <code>endpoints/</code> are flat, while <code>lib/</code> may be nested (<code>lib/payments/stripe</code>).</p>
+<p>The module name is required. Giving <strong>just the directory</strong> is an error — but a helpful one: for <code>handlers/</code> it lists the update types you don't already have, so you can copy one.</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">$ npx tgcloud add handlers
+Error: Specify a name, e.g. <span class="hljs-string">"handlers/callback_query"</span>. Available handlers/ types: callback_query, inline_query, chat_member, …</code></pre>
+<blockquote>
+<p><code>&lt;Tab&gt;</code> completion offers the same set — see <a href="#completion"><code>completion</code></a>. </p>
+</blockquote>
+<p>The generated file has a live <code>export default</code>, so the handler is active as soon as you deploy — there's nothing to uncomment. Deploy the new module with <a href="#push"><code>push</code></a>.</p>
+<h4><a class="anchor" name="login" href="#login" id="login"><i class="anchor-icon"></i></a><code>login</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud login</code></pre>
+<p>Prompts for your CLI access token — from <a href="https://t.me/BotFather">@BotFather</a> → your bot → Serverless → CLI Access → Access token, a separate token from your <a href="https://core.telegram.org/bots/api#authorizing-your-bot">bot's API token</a> — validates it against the platform, and saves it to <code>.tgcloud/credentials</code>. </p>
+<blockquote>
+<p><code>login</code> is the <strong>only</strong> command that asks for a token, and it requires an interactive terminal. In CI, set <code>TGCLOUD_TOKEN</code> instead.</p>
+</blockquote>
+<h4><a class="anchor" name="status" href="#status" id="status"><i class="anchor-icon"></i></a><code>status</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud status</code></pre>
+<p>Shows, per file, what has changed between your working directory and the deployed copy: modified, new, deleted, unchanged. It works offline, comparing against the state of the cloud as of your last <code>push</code>, <code>pull</code> or <code>fetch</code>. It also warns about stray <code>.js</code> files inside <code>tgcloud/</code> that won't be deployed.</p>
+<p>For a project with a Mini App, <code>status</code> also shows what changed in its build folder since the last deploy.</p>
+<h4><a class="anchor" name="diff" href="#diff" id="diff"><i class="anchor-icon"></i></a><code>diff</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud diff</code></pre>
+<p>Like <code>status</code>, but shows the actual line‑by‑line differences for changed modules. Also offline.</p>
+<h4><a class="anchor" name="push" href="#push" id="push"><i class="anchor-icon"></i></a><code>push</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud push [files...]</code></pre>
+<p>Deploys your project to the cloud in one atomic batch.</p>
+<p>With <strong>no arguments</strong>, it deploys the whole project, and the deployed state is made to mirror your folder exactly — modules you deleted locally are removed in the cloud.</p>
+<p>With <strong>file or directory arguments</strong> (<code>npx tgcloud push tgcloud/handlers/message.js</code>, <code>npx tgcloud push handlers/</code>), it deploys only the changes in those files. A targeted push never deletes other modules. A target may be spelled as the file path (<code>tgcloud/handlers/message.js</code>), the path inside <code>tgcloud/</code> (<code>handlers/message.js</code>) or the module name (<code>handlers/message</code>) — they all mean the same module.</p>
+<p>Its one option is <code>--force</code> — to skip the concurrency check and overwrite whatever is in the cloud. Only use it when you're sure (see <a href="#staying-in-sync">Staying in sync</a>). </p>
+<p>If <code>tgcloud.jsonc</code> names a static folder, a full <code>push</code> deploys it in the same batch — only the files that changed are uploaded — and prints the site's address. Build first, because <code>push</code> never runs your build (<code>npm run deploy</code> does both). <code>npx tgcloud push dist/</code> deploys the static files alone, and a push that names only modules leaves them untouched.</p>
+<p>After a deploy, if <code>schema.js</code> changed and the database is out of sync, <code>push</code> prints a summary of the pending changes and suggests <code>npx tgcloud migrate</code>. It never applies them itself.</p>
+<h4><a class="anchor" name="migrate" href="#migrate" id="migrate"><i class="anchor-icon"></i></a><code>migrate</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud migrate</code></pre>
+<p>Applies your schema changes to the database. It computes the difference between <code>schema.js</code> and the live database, then walks you through it one step at a time with a running <code>[N/M]</code> counter:</p>
+<ul>
+<li>A brief summary of all pending changes.</li>
+<li><strong>Safe changes</strong>, applied together in a single step on your confirmation.</li>
+<li><strong>Warnings</strong> (drops, slow operations), one at a time, each confirmed separately.</li>
+<li><strong>Manual changes</strong>, shown with a reason and suggested action, not applied automatically.</li>
+<li><strong>Undocumented objects</strong> (in the database but not your schema), shown for awareness. </li>
+</ul>
+<p>It ends with a summary: applied, skipped, awaiting manual fix, not in schema.</p>
+<blockquote>
+<p>See <a href="#migrations">Migrations</a> for the model.</p>
+</blockquote>
+<p>Options: <code>--dry-run</code> (print everything, apply nothing), <code>--safe</code> (auto‑apply safe changes, skip warnings), <code>--yes</code> (auto‑apply safe changes and every warning, skip manual — use with care), <code>--local</code> (diff against your local <code>schema.js</code> instead of the deployed one). Without a flag, <code>migrate</code> requires a terminal and errors in a non‑interactive environment rather than guessing.</p>
+<h4><a class="anchor" name="run" href="#run" id="run"><i class="anchor-icon"></i></a><code>run</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud run &lt;module&gt; [args] [--ctx &lt;json5&gt;]</code></pre>
+<p>Executes a handler or an endpoint on the platform <strong>without deploying</strong>, using your current local files. This is the fast inner loop for testing logic.</p>
+<ul>
+<li><code>&lt;module&gt;</code> — a bare name (searched under <code>handlers/</code> and <code>endpoints/</code>) or a path like <code>handlers/message</code>. A bare name that exists in both directories must be spelled with its directory.</li>
+<li><code>[args]</code> — the payload passed to the handler, written in <a href="https://json5.org/">JSON5</a> so you can skip quoting keys. It's the update‑type object your handler receives (e.g. a Message for <code>handlers/message</code>), or the <code>input</code> of an endpoint, and it must be an <strong>object</strong> — not an array or a bare string.</li>
+<li><code>--ctx &lt;json5&gt;</code> — the module's context object (its second argument), also JSON5. Use it to supply what your code reads off <code>ctx</code> — the raw update for a handler, <code>--ctx '{ update: { update_id: 1 } }'</code>, or the init data for an endpoint, <code>--ctx '{ initData: { user: { id: 1 } } }'</code>. <code>run</code> doesn't verify it, since you're testing your logic, not the platform's checks.</li>
+</ul>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud run handlers/message <span class="hljs-string">'{ chat: { id: 1 }, text: "hi" }'</span></code></pre>
+<p>The platform runs the module against the module space assembled from your <strong>local</strong> project (so locally‑changed <code>lib/</code> code is used too) and returns the return value, anything logged with <code>console.*</code>, and the elapsed time. Read big arguments from a file with <code>npx tgcloud run handlers/message "$(cat message.json5)"</code>.</p>
+<h4><a class="anchor" name="fetch" href="#fetch" id="fetch"><i class="anchor-icon"></i></a><code>fetch</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud fetch</code></pre>
+<p>Checks what is currently deployed, without touching your working files. After it, <code>status</code> and <code>diff</code> compare against the latest cloud state. Useful to look at a conflict before deciding how to resolve it.</p>
+<h4><a class="anchor" name="pull" href="#pull" id="pull"><i class="anchor-icon"></i></a><code>pull</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud pull</code></pre>
+<p>Brings your local project in line with the cloud by updating your working files to the deployed state.</p>
+<p><code>pull</code> never writes your Mini App's build folder.</p>
+<h4><a class="anchor" name="reset" href="#reset" id="reset"><i class="anchor-icon"></i></a><code>reset</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud reset</code></pre>
+<p>Discards your local changes and restores the modules from the last known cloud state. Use it to throw away an experiment. The Mini App's build folder is not touched.</p>
+<h4><a class="anchor" name="webhook" href="#webhook" id="webhook"><i class="anchor-icon"></i></a><code>webhook</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud webhook
+npx tgcloud webhook <span class="hljs-built_in">sync</span> [--drop-pending]</code></pre>
+<p>Telegram delivers updates to your bot through a webhook, which the platform manages for you — you never point it anywhere by hand. <code>npx tgcloud webhook</code> shows its current state: the URL, the <code>allowed_updates</code> list, how many updates are pending, the last delivery error (if any), and whether it is <strong>in sync</strong> with your deployed handlers.</p>
+<p>“In sync” means the webhook points at the platform and its <code>allowed_updates</code> match the handlers you've deployed — so Telegram delivers exactly the update types you handle, and nothing else. Deploying a new handler (or removing one) can leave the webhook out of sync until it's refreshed; <code>npx tgcloud status</code> flags this too.</p>
+<p><code>npx tgcloud webhook sync</code> fixes it — it re‑points the webhook at the platform and rebuilds <code>allowed_updates</code> from your deployed handlers. Add <code>--drop-pending</code> to discard updates Telegram had already queued before the sync (otherwise they're delivered once the webhook is healthy again).</p>
+<h4><a class="anchor" name="completion" href="#completion" id="completion"><i class="anchor-icon"></i></a><code>completion</code></h4>
+<blockquote>
+<p><strong>Note:</strong> tab‑completion works only when a bare <code>tgcloud</code> is on your <code>PATH</code> — so install it globally (<code>npm install -g @tgcloud/cli</code>) or otherwise put the binary on your <code>PATH</code>. It can't hook into <code>npx</code>.</p>
+</blockquote>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">tgcloud completion &lt;bash|zsh|fish&gt;</code></pre>
+<p>Prints a shell completion script to stdout. Enable it once, then <code>&lt;Tab&gt;</code> completes commands, flags, module directories, the handler update‑types you don't have yet, and your local runnable modules.</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes"><span class="hljs-comment"># bash — needs the bash-completion package:</span>
+<span class="hljs-built_in">echo</span> <span class="hljs-string">'eval "$(tgcloud completion bash)"'</span> &gt;&gt; ~/.bashrc
+
+<span class="hljs-comment"># zsh — ensure `autoload -U compinit &amp;&amp; compinit` runs in your ~/.zshrc:</span>
+<span class="hljs-built_in">echo</span> <span class="hljs-string">'eval "$(tgcloud completion zsh)"'</span> &gt;&gt; ~/.zshrc
+
+<span class="hljs-comment"># fish:</span>
+tgcloud completion fish &gt; ~/.config/fish/completions/tgcloud.fish</code></pre>
+<p>Restart your shell (or re‑source the file) afterwards. Running <code>tgcloud completion</code> with no shell prints these instructions again.</p>
+<h4><a class="anchor" name="upgrade" href="#upgrade" id="upgrade"><i class="anchor-icon"></i></a><code>upgrade</code></h4>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud upgrade [--dry-run]</code></pre>
+<p>One‑time migration for projects created before CLI 0.2.0, which kept <code>schema.js</code>, <code>lib/</code> and <code>handlers/</code> at the project root. It moves them into <code>tgcloud/</code>. Your link to the bot is kept, and nothing needs to be redeployed. <code>--dry-run</code> prints the planned moves without touching anything. Other commands don't run on the old layout until you upgrade.</p>
+<h4><a class="anchor" name="staying-in-sync" href="#staying-in-sync" id="staying-in-sync"><i class="anchor-icon"></i></a>Staying in sync</h4>
+<p>Every project has a monotonically increasing <strong>revision</strong> in the cloud, bumped on each deploy. The CLI remembers the revision it last synced with and sends it on each <code>push</code>. If the cloud has moved ahead — because another machine or teammate deployed — the push is <strong>rejected</strong> instead of silently overwriting their work, and the CLI offers three ways forward:</p>
+<pre><code class="lang-bash hljs language-bash" data-highlighted="yes">npx tgcloud fetch           <span class="hljs-comment"># see what changed in the cloud, then re-check</span>
+npx tgcloud pull            <span class="hljs-comment"># bring the latest into your working files</span>
+npx tgcloud push --force    <span class="hljs-comment"># overwrite the cloud state (dangerous)</span></code></pre>
+<p>This optimistic‑concurrency check is why you can share a bot across a team without a lockstep deploy process. Commands exit non‑zero on failure — a rejected deploy, a failed migration, an authentication error, a module that threw during <code>run</code> — so they compose cleanly in scripts and CI pipelines.</p>
+</div></div>
+</article>
+</main>
+</body>
+</html>
