@@ -88,16 +88,35 @@ try {
       return `\n\n${cerca}${linguagem}\n${codigo}\n${cerca}\n\n`;
     },
   });
-  const md = `# ${titulo}\n\nFonte: <${alvo.href}>  \nExtraído em ${quando}\n\n---\n\n${turndown.turndown(artigo.conteudo)}\n`;
+  // Links sem texto (o ícone de âncora ao lado dos títulos) não levam a nada no .md.
+  turndown.addRule("link-vazio", {
+    filter: (no) => no.nodeName === "A" && !no.textContent.trim() && !no.querySelector("img"),
+    replacement: () => "",
+  });
+  // Itens de lista com "- " e o recuo do tamanho do marcador (o padrão do Turndown é "-   ").
+  turndown.addRule("item", {
+    filter: "li",
+    replacement: (conteudo, no, opcoes) => {
+      const lista = no.parentNode;
+      let marcador = `${opcoes.bulletListMarker} `;
+      if (lista.nodeName === "OL") {
+        const inicio = Number(lista.getAttribute("start") || 1);
+        marcador = `${inicio + Array.prototype.indexOf.call(lista.children, no)}. `;
+      }
+      const texto = conteudo
+        .replace(/^\n+/, "")
+        .replace(/\n+$/, "\n")
+        .replace(/\n(?!\n|$)/g, `\n${" ".repeat(marcador.length)}`);
+      return marcador + texto + (no.nextSibling && !/\n$/.test(texto) ? "\n" : "");
+    },
+  });
+  const corpo = turndown.turndown(artigo.conteudo).replace(/\n{3,}/g, "\n\n");
+  const md = `# ${titulo}\n\n> Fonte: <${alvo.href}>  \n> Extraído em ${quando}\n\n---\n\n${corpo}\n`;
   await writeFile(`${pasta}/${versao}.md`, md);
 
   await page.setContent(html, { waitUntil: "load" });
-  await page.pdf({
-    path: `${pasta}/${versao}.pdf`,
-    format: "A4",
-    printBackground: true,
-    margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" },
-  });
+  await page.evaluate(() => document.fonts.ready);
+  await page.pdf({ path: `${pasta}/${versao}.pdf`, format: "A4", printBackground: true, preferCSSPageSize: true });
 
   console.log(`${pasta}/${versao}.{md,html,pdf}`);
 } catch (erro) {
@@ -117,6 +136,9 @@ function escapar(texto) {
   return texto.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 }
 
+// O HTML e o PDF têm o visual do app: o fundo de manchas, o card de vidro e a
+// marca ❯_loggerview. O PDF é este mesmo HTML impresso, com o vidro trocado por
+// um branco translúcido (desfoque não imprime bem).
 function documento({ titulo, link, quando, conteudo, idioma }) {
   return `<!doctype html>
 <html lang="${escapar(idioma || "en")}">
@@ -124,25 +146,81 @@ function documento({ titulo, link, quando, conteudo, idioma }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapar(titulo)}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%9D%AF&display=swap">
 <style>
-:root{color-scheme:light dark}
-body{margin:0;font:16px/1.6 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;color:#1c1c1e;background:#fff}
-@media (prefers-color-scheme:dark){body{color:#f5f5f7;background:#111}a{color:#64d2ff}}
-main{max-width:46rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
-header{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid #8884}
-header h1{margin:0 0 .5rem;font-size:1.9rem;line-height:1.2}
-header p{margin:0;font-size:.9rem;opacity:.7;overflow-wrap:anywhere}
-img,video{max-width:100%;height:auto}
-pre{overflow-x:auto;padding:.9rem 1rem;border-radius:.5rem;background:#8881;white-space:pre}
-code{font-family:ui-monospace,"JetBrains Mono",monospace;font-size:.9em}
-table{border-collapse:collapse;display:block;overflow-x:auto}
-th,td{border:1px solid #8884;padding:.35rem .6rem;text-align:left}
-blockquote{margin:1rem 0;padding:0 1rem;border-left:3px solid #8886}
-@media print{body{background:#fff;color:#000}pre{white-space:pre-wrap}a{color:#000}}
+:root{
+  --page-edge:#8b82e6;
+  --base:linear-gradient(180deg,#8b82e6 0%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 88%,#8b82e6 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(255 158 205 / .72), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(127 207 255 / .70), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(255 212 154 / .66), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / .62), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(201 166 255 / .62), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(255 184 168 / .50), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(169 200 255 / .56), transparent 70%);
+  --text:#1c1c1e; --forte:#0a0b0d; --sub:rgba(0,0,0,.6);
+  --vidro:rgba(238,240,245,.3); --frost:blur(5px) saturate(1.15);
+  --bloco:rgba(255,255,255,.55); --linha:rgba(0,0,0,.12);
+  --sombra:0 10px 28px rgba(30,20,90,.16), 0 2px 6px rgba(30,20,90,.08);
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --page-edge:#1b1646;
+  --base:linear-gradient(180deg,#1b1646 0%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 88%,#1b1646 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(214 70 160 / .44), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(40 160 220 / .42), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(230 140 60 / .28), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(40 200 170 / .32), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(120 80 230 / .42), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(200 80 140 / .28), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 120 220 / .34), transparent 70%);
+  --text:#f5f5f7; --forte:#fff; --sub:rgba(255,255,255,.6);
+  --vidro:rgba(18,18,20,.3); --bloco:rgba(0,0,0,.32); --linha:rgba(255,255,255,.14);
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
+html::before{background:var(--base)}
+html::after{background:var(--campos);
+  -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
+          mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%)}
+body{margin:0;padding:clamp(16px,4vw,48px) max(16px,env(safe-area-inset-left));background-color:var(--page-edge);
+  color:var(--text);font:16px/1.65 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+main{max-width:48rem;margin:0 auto;padding:clamp(22px,4vw,40px);border-radius:30px;background:var(--vidro);
+  -webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost);box-shadow:var(--sombra)}
+.marca{margin:0 0 1.2rem;font:700 15px/1 var(--mono);letter-spacing:-.03em;color:var(--forte)}
+.marca .chev{font-family:"Noto Sans Symbols 2",sans-serif;font-weight:400;font-size:.837em;vertical-align:.075em}
+header{margin-bottom:1.8rem;padding-bottom:1.2rem;border-bottom:1px solid var(--linha)}
+header h1{margin:0 0 .5rem;font-size:clamp(1.6rem,4vw,2.1rem);line-height:1.2;letter-spacing:-.02em;color:var(--forte)}
+header p{margin:0;font-size:.9rem;color:var(--sub);overflow-wrap:anywhere}
+h1,h2,h3,h4,h5,h6{color:var(--forte);line-height:1.25;letter-spacing:-.01em;margin:1.8em 0 .6em}
+a{color:inherit;text-underline-offset:2px}
+img,video{max-width:100%;height:auto;border-radius:12px}
+code{font-family:var(--mono);font-size:.88em;padding:.1em .35em;border-radius:6px;background:var(--bloco)}
+pre{overflow-x:auto;padding:1rem 1.1rem;border-radius:16px;background:var(--bloco);white-space:pre;line-height:1.5}
+pre,pre code{font-family:var(--mono);font-size:.85rem}
+pre code{padding:0;background:none}
+blockquote{margin:1.2rem 0;padding:.2rem 1.1rem;border-left:3px solid var(--sub);color:var(--sub)}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}
+th,td{border:1px solid var(--linha);padding:.4rem .7rem;text-align:left}
+hr{border:0;border-top:1px solid var(--linha);margin:2rem 0}
+@page{size:A4;margin:0}
+@media print{
+  body{padding:14mm 12mm}
+  main{max-width:none;background:rgba(255,255,255,.78);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
+    -webkit-box-decoration-break:clone;box-decoration-break:clone}
+  pre{white-space:pre-wrap;break-inside:avoid}
+  h1,h2,h3,h4{break-after:avoid}
+}
 </style>
 </head>
 <body>
 <main>
+<p class="marca"><span class="chev">❯</span>_loggerview</p>
 <header>
 <h1>${escapar(titulo)}</h1>
 <p>Fonte: <a href="${escapar(link)}">${escapar(link)}</a> · Extraído em ${escapar(quando)}</p>
