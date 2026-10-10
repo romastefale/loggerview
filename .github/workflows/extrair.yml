@@ -1,7 +1,7 @@
 name: Extrair
-# A página dispara este workflow com o link e um identificador de pedido;
-# o run-name carrega o pedido para a página achar a execução dela.
-run-name: extrair ${{ inputs.pedido }}
+# A página dispara este workflow com o link e a versão (data, hora e um sufixo);
+# o run-name carrega a versão para a página achar a execução dela.
+run-name: extrair ${{ inputs.versao }}
 
 on:
   workflow_dispatch:
@@ -10,11 +10,11 @@ on:
         description: Link da publicação
         required: true
         type: string
-      pedido:
-        description: Identificador do pedido (a página preenche)
+      versao:
+        description: Versão (a página preenche; em branco, o script gera)
         required: false
         type: string
-        default: manual
+        default: ""
 
 permissions:
   contents: write
@@ -38,7 +38,8 @@ jobs:
       - name: Extrair
         env:
           URL: ${{ inputs.url }}
-        run: node scripts/extrair.mjs "$URL"
+          VERSAO: ${{ inputs.versao }}
+        run: node scripts/extrair.mjs "$URL" "$VERSAO"
 
       - name: Gravar na biblioteca
         env:

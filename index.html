@@ -166,6 +166,7 @@ const $ = (s) => document.querySelector(s);
 const campo = $("#link");
 const st = { carregando: $("#st-carregando"), pronto: $("#st-pronto"), erro: $("#st-erro") };
 let nome = "";
+let versao = "";
 let pendente = "";
 
 const lerToken = () => { try { return localStorage.getItem(CHAVE) || ""; } catch { return ""; } };
@@ -205,12 +206,13 @@ async function gh(caminho, opcoes = {}) {
 const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 async function extrair(link) {
+  // Não há como saber se o site mudou: cada pedido é uma versão nova na biblioteca.
   nome = slug(link);
-  const pedido = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  versao = novaVersao();
   estado("carregando");
   await gh("/actions/workflows/extrair.yml/dispatches", {
     method: "POST",
-    body: JSON.stringify({ ref: "main", inputs: { url: link, pedido } }),
+    body: JSON.stringify({ ref: "main", inputs: { url: link, versao } }),
   });
   const fim = Date.now() + LIMITE_MS;
   let execucao = null;
@@ -218,7 +220,7 @@ async function extrair(link) {
     await esperar(4000);
     if (!execucao) {
       const { workflow_runs } = await (await gh("/actions/runs?event=workflow_dispatch&per_page=30")).json();
-      execucao = workflow_runs.find((r) => r.name === `extrair ${pedido}`) || null;
+      execucao = workflow_runs.find((r) => r.name === `extrair ${versao}`) || null;
       continue;
     }
     execucao = await (await gh(`/actions/runs/${execucao.id}`)).json();
@@ -227,6 +229,14 @@ async function extrair(link) {
     throw new Error(await motivoDaFalha(execucao.id));
   }
   throw new Error("A extração passou de 12 minutos.");
+}
+
+// Data e hora locais e um sufixo curto, para dois pedidos no mesmo segundo não colidirem.
+function novaVersao() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const data = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `${data}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 // O script do workflow escreve o motivo como ::error::, que vira anotação do job.
@@ -273,11 +283,11 @@ document.querySelectorAll("[data-dl]").forEach((botao) =>
   botao.addEventListener("click", async () => {
     const ext = botao.dataset.dl;
     try {
-      const r = await gh(`/contents/biblioteca/${nome}.${ext}?ref=main`, {
+      const r = await gh(`/contents/biblioteca/${nome}/${versao}.${ext}?ref=main`, {
         headers: { Accept: "application/vnd.github.raw" },
       });
       const url = URL.createObjectURL(await r.blob());
-      const a = Object.assign(document.createElement("a"), { href: url, download: `${nome}.${ext}` });
+      const a = Object.assign(document.createElement("a"), { href: url, download: `${nome}-${versao}.${ext}` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (erro) {

@@ -2,7 +2,9 @@
 // Um caminho só: o Chromium carrega a página (com JavaScript), o Readability
 // tira o conteúdo, o Turndown gera o .md e o próprio Chromium imprime o PDF.
 // Qualquer falha encerra com um erro ::error:: que a página mostra no alerta.
-// Uso: node scripts/extrair.mjs <link>
+// Não há como saber se o site mudou: cada pedido é uma versão nova, guardada ao
+// lado das anteriores em biblioteca/<site>/<versão>.{md,html,pdf}.
+// Uso: node scripts/extrair.mjs <link> [versão]
 import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
@@ -29,7 +31,9 @@ try {
 }
 if (alvo.protocol !== "http:" && alvo.protocol !== "https:") falha("O link precisa começar com http ou https.");
 
-const nome = slug(alvo.href);
+const pasta = `${PASTA}/${slug(alvo.href)}`;
+const versao = process.argv[3]?.trim() || novaVersao();
+if (!/^[a-z0-9-]+$/.test(versao)) falha("Versão inválida.");
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ userAgent: UA, locale: "pt-BR" });
@@ -56,28 +60,34 @@ try {
 
   const titulo = (artigo.titulo || alvo.hostname).trim();
   const quando = new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(new Date());
-  await mkdir(PASTA, { recursive: true });
+  await mkdir(pasta, { recursive: true });
 
   const html = documento({ titulo, link: alvo.href, quando, conteudo: artigo.conteudo, idioma: artigo.idioma });
-  await writeFile(`${PASTA}/${nome}.html`, html);
+  await writeFile(`${pasta}/${versao}.html`, html);
 
   const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
   // Tabelas ficam em HTML dentro do .md: o Turndown sozinho não gera tabela Markdown.
   turndown.keep(["table"]);
   const md = `# ${titulo}\n\nFonte: <${alvo.href}>  \nExtraído em ${quando}\n\n---\n\n${turndown.turndown(artigo.conteudo)}\n`;
-  await writeFile(`${PASTA}/${nome}.md`, md);
+  await writeFile(`${pasta}/${versao}.md`, md);
 
   await page.setContent(html, { waitUntil: "load" });
   await page.pdf({
-    path: `${PASTA}/${nome}.pdf`,
+    path: `${pasta}/${versao}.pdf`,
     format: "A4",
     printBackground: true,
     margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" },
   });
 
-  console.log(`${PASTA}/${nome}.{md,html,pdf}`);
+  console.log(`${pasta}/${versao}.{md,html,pdf}`);
 } finally {
   await browser.close();
+}
+
+// Para quem roda à mão: data e hora (UTC) e um sufixo curto, o mesmo formato da página.
+function novaVersao() {
+  const d = new Date().toISOString().slice(0, 19).replace("T", "-").replace(/:/g, "");
+  return `${d}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 function escapar(texto) {
