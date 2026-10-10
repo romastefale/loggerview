@@ -1,0 +1,13 @@
+{
+  "name": "loggerview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extrair": "node scripts/extrair.mjs"
+  },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "playwright": "1.64.0",
+    "turndown": "7.2.4"
+  }
+}

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Logger View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%9D%AF&display=swap">
+<style>
+/* ── Fundo: só CSS, proporcional à tela ─────────────────────────────────────
+   Camada fixa de 100lvh (a viewport grande): não muda de tamanho quando a
+   barra do navegador aparece ou some. As manchas são gradientes radiais em
+   vmax, então mantêm o formato em qualquer proporção; as posições em % se
+   espalham pela tela. Uma máscara vertical deixa o topo e a base na cor
+   sólida das barras (--page-edge). */
+:root{
+  --page-edge:#8b82e6;
+  --base:linear-gradient(180deg,#8b82e6 0%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 88%,#8b82e6 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(255 158 205 / .72), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(127 207 255 / .70), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(255 212 154 / .66), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / .62), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(201 166 255 / .62), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(255 184 168 / .50), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(169 200 255 / .56), transparent 70%);
+  --text:#1c1c1e; --bar-text:#0a0b0d; --bar-sub:rgba(0,0,0,.6);
+  --vidro-tint:rgba(238,240,245,0.3);
+  --frost:blur(5px) saturate(1.15);
+  --glass-float:0 10px 28px rgba(30,20,90,.16), 0 2px 6px rgba(30,20,90,.08);
+  --glass-ease:cubic-bezier(.34,1.36,.42,1);
+  --focus:rgba(28,28,30,.5);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --page-edge:#1b1646;
+  --base:linear-gradient(180deg,#1b1646 0%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 88%,#1b1646 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(214 70 160 / .44), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(40 160 220 / .42), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(230 140 60 / .28), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(40 200 170 / .32), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(120 80 230 / .42), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(200 80 140 / .28), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 120 220 / .34), transparent 70%);
+  --text:#f5f5f7; --bar-text:#fff; --bar-sub:rgba(255,255,255,.6);
+  --vidro-tint:rgba(18,18,20,0.3);
+  --focus:rgba(245,245,247,.62);
+  color-scheme:dark;
+}}
+html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
+html::before{background:var(--base)}
+html::after{background:var(--campos);
+  -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
+          mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%)}
+
+/* ── Card: tudo medido numa unidade proporcional à tela ─────────────────────
+   --u acompanha o menor lado da tela (vmin), com piso e teto. O card inteiro
+   (larguras, fontes, raios, espaços) está em em, então escala junto.
+   Centralizado na viewport pequena (100svh): a área sempre visível, que não
+   muda enquanto a barra do navegador anima. */
+:root{--u:clamp(15px, 1.1vmin + 9px, 24px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  color:var(--text);background-color:var(--page-edge);
+  font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.frost{background:var(--vidro-tint);-webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost)}
+
+.card{font-size:var(--u);width:min(38.75em,100%);border-radius:1.875em;padding:2.125em 1.375em 1.625em;box-shadow:var(--glass-float);
+  display:grid;gap:1.375em;justify-items:center}
+.card h1{margin:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:1.75em;font-weight:700;letter-spacing:-.03em;color:var(--bar-text);white-space:nowrap}
+/* O prompt do terminal na frente do nome: ❯ e o cursor _ piscando, na cor do texto.
+   A JetBrains Mono não tem o ❯; ele vem da Noto Sans Symbols 2 (só esse caractere),
+   igual em todo aparelho. Medido em pixels contra o "l": escala e subida para os dois
+   terem a mesma altura, com topo e base alinhados. */
+.chev{font-family:"Noto Sans Symbols 2",sans-serif;font-weight:400;font-size:.837em;line-height:0;vertical-align:.075em}
+.cursor{animation:pisca 1.1s steps(1) infinite}
+@keyframes pisca{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.cursor{animation:none}}
+
+.pill-bar{position:relative;width:100%;height:3.25em;border-radius:1.625em}
+.page-search{position:absolute;inset:0 3.06em 0 0;display:flex;align-items:center;gap:.125em;padding:0 0 0 1em;color:var(--bar-text)}
+.page-search input{flex:1;min-width:0;height:2.5em;border:0;outline:0;background:transparent;padding:0;
+  color:inherit;font:inherit;font-size:max(16px,1.0625em);letter-spacing:-.012em;caret-color:var(--bar-text);-webkit-appearance:none;appearance:none}
+.page-search input::placeholder{color:var(--bar-sub);opacity:1}
+.ps-sep[hidden]{display:none}
+.ps-sep{flex:0 0 auto;width:1px;height:1.25em;margin:0 .19em;background:currentColor;opacity:.16}
+.status{width:2.125em;height:2.125em;flex:0 0 auto;display:grid;place-items:center;color:var(--bar-sub);border:0;background:none;padding:0;border-radius:1.06em}
+.status svg{width:1.19em;height:1.19em}
+.status[hidden]{display:none}
+.spin{animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.lupa{position:absolute;top:.5625em;right:.5625em;width:2.125em;height:2.125em;border-radius:1.06em;border:0;padding:0;
+  display:grid;place-items:center;color:var(--bar-text);box-shadow:var(--glass-float)}
+.lupa svg{width:.94em;height:.94em}
+.lupa:disabled{cursor:default;opacity:.55}
+
+.downloads{display:flex;flex-wrap:wrap;justify-content:center;gap:.625em}
+.btn{display:inline-flex;align-items:center;gap:.5em;padding:.75em 1.375em;min-height:max(44px,2.75em);border-radius:999px;border:0;
+  font-size:.97em;font-weight:600;letter-spacing:-.006em;color:var(--bar-text);box-shadow:var(--glass-float);
+  transition:opacity .2s ease, transform .2s var(--glass-ease)}
+.btn:active{transform:scale(.975)}
+.btn:disabled{opacity:.4;cursor:default;box-shadow:none}
+.btn svg{width:1.03em;height:1.03em}
+/* Tela estreita: os três downloads cabem lado a lado. */
+@media (max-width:480px){.downloads{gap:.5em}.btn{padding:.75em .8em;gap:.35em}}
+.motivo{margin:-.5em 0 0;font-size:.85em;color:var(--bar-sub);text-align:center}
+.motivo[hidden]{display:none}
+
+</style>
+</head>
+<body>
+<main class="card frost">
+  <h1><span class="prompt" aria-hidden="true"><span class="chev">❯</span><span class="cursor">_</span></span>loggerview</h1>
+
+  <div class="pill-bar frost">
+    <form class="page-search" role="search" aria-label="Baixar changelog" id="form">
+      <input id="link" type="url" inputmode="url" placeholder="Cole o link do changelog" aria-label="Link do changelog"
+             autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <span class="ps-sep" id="sep" aria-hidden="true" hidden></span>
+      <span class="status" id="st-carregando" role="status" aria-label="Baixando" hidden>
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" /></svg>
+      </span>
+      <span class="status" id="st-pronto" role="status" aria-label="Pronto" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.4 4.4L19 7.3"/></svg>
+      </span>
+      <button class="status" type="button" id="st-erro" aria-label="Falhou. Ver motivo" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>
+      </button>
+    </form>
+    <button class="lupa frost" type="submit" form="form" id="lupa" aria-label="Baixar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    </button>
+  </div>
+
+  <p class="motivo" id="motivo" role="alert" hidden></p>
+
+  <div class="downloads">
+    <button class="btn frost" type="button" disabled data-dl="md">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>.md</button>
+    <button class="btn frost" type="button" disabled data-dl="html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>HTML</button>
+    <button class="btn frost" type="button" disabled data-dl="pdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>PDF</button>
+  </div>
+</main>
+
+<script type="module">
+// A lupa dispara o workflow "Extrair" no GitHub; o símbolo ao lado acompanha a
+// execução; quando termina, os botões baixam os arquivos da biblioteca.
+import { slug } from "./slug.js";
+
+const DONO = "romastefale";
+const REPO = "loggerview";
+const API = `https://api.github.com/repos/${DONO}/${REPO}`;
+const CHAVE = "loggerview-token";
+const LIMITE_MS = 12 * 60_000; // o job tem 10 min; sobra para a máquina ligar
+
+const $ = (s) => document.querySelector(s);
+const campo = $("#link");
+const st = { carregando: $("#st-carregando"), pronto: $("#st-pronto"), erro: $("#st-erro") };
+let nome = "";
+let pendente = "";
+
+const lerToken = () => { try { return localStorage.getItem(CHAVE) || ""; } catch { return ""; } };
+const salvarToken = (t) => { try { t ? localStorage.setItem(CHAVE, t) : localStorage.removeItem(CHAVE); } catch {} };
+
+function estado(qual, motivo = "") {
+  for (const [k, el] of Object.entries(st)) el.hidden = k !== qual;
+  $("#sep").hidden = qual === "vazio";
+  $("#lupa").disabled = qual === "carregando";
+  $("#motivo").textContent = motivo;
+  $("#motivo").hidden = true;
+  document.querySelectorAll("[data-dl]").forEach((b) => (b.disabled = qual !== "pronto"));
+}
+
+// Sem token, o mesmo campo pede o token uma vez; ele fica só neste navegador.
+function modoToken(ligar) {
+  campo.type = ligar ? "password" : "url";
+  campo.placeholder = ligar ? "Token do GitHub (só na primeira vez)" : "Cole o link do changelog";
+  campo.setAttribute("aria-label", ligar ? "Token do GitHub" : "Link do changelog");
+  campo.value = ligar ? "" : pendente;
+  campo.focus();
+}
+
+async function gh(caminho, opcoes = {}) {
+  const r = await fetch(`${API}${caminho}`, {
+    ...opcoes,
+    headers: { Authorization: `Bearer ${lerToken()}`, "X-GitHub-Api-Version": "2022-11-28", ...opcoes.headers },
+  });
+  if (r.status === 401) {
+    salvarToken("");
+    throw new Error("O token não vale mais. Cole um token novo.");
+  }
+  if (!r.ok) throw new Error(`O GitHub respondeu ${r.status}.`);
+  return r;
+}
+
+const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+async function extrair(link) {
+  nome = slug(link);
+  const pedido = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  estado("carregando");
+  await gh("/actions/workflows/extrair.yml/dispatches", {
+    method: "POST",
+    body: JSON.stringify({ ref: "main", inputs: { url: link, pedido } }),
+  });
+  const fim = Date.now() + LIMITE_MS;
+  let execucao = null;
+  while (Date.now() < fim) {
+    await esperar(4000);
+    if (!execucao) {
+      const { workflow_runs } = await (await gh("/actions/runs?event=workflow_dispatch&per_page=30")).json();
+      execucao = workflow_runs.find((r) => r.name === `extrair ${pedido}`) || null;
+      continue;
+    }
+    execucao = await (await gh(`/actions/runs/${execucao.id}`)).json();
+    if (execucao.status !== "completed") continue;
+    if (execucao.conclusion === "success") return estado("pronto");
+    throw new Error(await motivoDaFalha(execucao.id));
+  }
+  throw new Error("A extração passou de 12 minutos.");
+}
+
+// O script do workflow escreve o motivo como ::error::, que vira anotação do job.
+async function motivoDaFalha(id) {
+  try {
+    const { jobs } = await (await gh(`/actions/runs/${id}/jobs`)).json();
+    for (const job of jobs) {
+      const notas = await (await gh(`/check-runs/${job.id}/annotations`)).json();
+      const nota = notas.find((n) => n.annotation_level === "failure" && !/exit code/i.test(n.message));
+      if (nota) return nota.message;
+    }
+  } catch {}
+  return "A extração falhou.";
+}
+
+$("#form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const valor = campo.value.trim();
+  if (campo.type === "password") {
+    if (!valor) return;
+    salvarToken(valor);
+    modoToken(false);
+  } else {
+    pendente = valor;
+  }
+  let link;
+  try {
+    link = new URL(pendente).href;
+  } catch {
+    return estado("erro", "Esse link não é válido.");
+  }
+  if (!lerToken()) return modoToken(true);
+  try {
+    await extrair(link);
+  } catch (erro) {
+    estado("erro", erro.message);
+    if (!lerToken()) modoToken(true);
+  }
+});
+
+st.erro.addEventListener("click", () => ($("#motivo").hidden = !$("#motivo").hidden));
+
+document.querySelectorAll("[data-dl]").forEach((botao) =>
+  botao.addEventListener("click", async () => {
+    const ext = botao.dataset.dl;
+    try {
+      const r = await gh(`/contents/biblioteca/${nome}.${ext}?ref=main`, {
+        headers: { Accept: "application/vnd.github.raw" },
+      });
+      const url = URL.createObjectURL(await r.blob());
+      const a = Object.assign(document.createElement("a"), { href: url, download: `${nome}.${ext}` });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (erro) {
+      estado("erro", erro.message);
+    }
+  }),
+);
+</script>
+</body>
+</html>
