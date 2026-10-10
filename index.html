@@ -152,25 +152,23 @@ button{font:inherit;cursor:pointer}
 </main>
 
 <script type="module">
-// A lupa dispara o workflow "Extrair" no GitHub; o símbolo ao lado acompanha a
-// execução; quando termina, os botões baixam os arquivos da biblioteca.
+// A lupa abre no GitHub uma issue já preenchida com o pedido ("extrair <versão>",
+// com o link no corpo). Você confirma lá, com o seu login, e a issue dispara o
+// workflow "Extrair". A página acompanha a execução e baixa os arquivos sem chave
+// nenhuma: o repositório é público.
 import { slug } from "./slug.js";
 
 const DONO = "romastefale";
 const REPO = "loggerview";
 const API = `https://api.github.com/repos/${DONO}/${REPO}`;
-const CHAVE = "loggerview-token";
-const LIMITE_MS = 12 * 60_000; // o job tem 10 min; sobra para a máquina ligar
+const ARQUIVOS = `https://raw.githubusercontent.com/${DONO}/${REPO}/main/biblioteca`;
+const LIMITE_MS = 20 * 60_000; // tempo para você confirmar a issue e o job (10 min) rodar
+const INTERVALO_MS = 10_000; // a API pública aceita 60 consultas por hora
 
 const $ = (s) => document.querySelector(s);
-const campo = $("#link");
 const st = { carregando: $("#st-carregando"), pronto: $("#st-pronto"), erro: $("#st-erro") };
 let nome = "";
 let versao = "";
-let pendente = "";
-
-const lerToken = () => { try { return localStorage.getItem(CHAVE) || ""; } catch { return ""; } };
-const salvarToken = (t) => { try { t ? localStorage.setItem(CHAVE, t) : localStorage.removeItem(CHAVE); } catch {} };
 
 function estado(qual, motivo = "") {
   for (const [k, el] of Object.entries(st)) el.hidden = k !== qual;
@@ -181,55 +179,14 @@ function estado(qual, motivo = "") {
   document.querySelectorAll("[data-dl]").forEach((b) => (b.disabled = qual !== "pronto"));
 }
 
-// Sem token, o mesmo campo pede o token uma vez; ele fica só neste navegador.
-function modoToken(ligar) {
-  campo.type = ligar ? "password" : "url";
-  campo.placeholder = ligar ? "Token do GitHub (só na primeira vez)" : "Cole o link do changelog";
-  campo.setAttribute("aria-label", ligar ? "Token do GitHub" : "Link do changelog");
-  campo.value = ligar ? "" : pendente;
-  campo.focus();
-}
-
-async function gh(caminho, opcoes = {}) {
-  const r = await fetch(`${API}${caminho}`, {
-    ...opcoes,
-    headers: { Authorization: `Bearer ${lerToken()}`, "X-GitHub-Api-Version": "2022-11-28", ...opcoes.headers },
-  });
-  if (r.status === 401) {
-    salvarToken("");
-    throw new Error("O token não vale mais. Cole um token novo.");
-  }
+async function gh(caminho) {
+  const r = await fetch(`${API}${caminho}`, { headers: { "X-GitHub-Api-Version": "2022-11-28" } });
+  if (r.status === 403 || r.status === 429) throw new Error("O GitHub limitou as consultas por agora. Tente de novo em alguns minutos.");
   if (!r.ok) throw new Error(`O GitHub respondeu ${r.status}.`);
-  return r;
+  return r.json();
 }
 
 const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
-
-async function extrair(link) {
-  // Não há como saber se o site mudou: cada pedido é uma versão nova na biblioteca.
-  nome = slug(link);
-  versao = novaVersao();
-  estado("carregando");
-  await gh("/actions/workflows/extrair.yml/dispatches", {
-    method: "POST",
-    body: JSON.stringify({ ref: "main", inputs: { url: link, versao } }),
-  });
-  const fim = Date.now() + LIMITE_MS;
-  let execucao = null;
-  while (Date.now() < fim) {
-    await esperar(4000);
-    if (!execucao) {
-      const { workflow_runs } = await (await gh("/actions/runs?event=workflow_dispatch&per_page=30")).json();
-      execucao = workflow_runs.find((r) => r.name === `extrair ${versao}`) || null;
-      continue;
-    }
-    execucao = await (await gh(`/actions/runs/${execucao.id}`)).json();
-    if (execucao.status !== "completed") continue;
-    if (execucao.conclusion === "success") return estado("pronto");
-    throw new Error(await motivoDaFalha(execucao.id));
-  }
-  throw new Error("A extração passou de 12 minutos.");
-}
 
 // Data e hora locais e um sufixo curto, para dois pedidos no mesmo segundo não colidirem.
 function novaVersao() {
@@ -239,12 +196,30 @@ function novaVersao() {
   return `${data}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+async function acompanhar() {
+  const fim = Date.now() + LIMITE_MS;
+  let execucao = null;
+  while (Date.now() < fim) {
+    await esperar(INTERVALO_MS);
+    if (!execucao) {
+      const { workflow_runs } = await gh("/actions/workflows/extrair.yml/runs?per_page=20");
+      execucao = workflow_runs.find((r) => r.name === `extrair ${versao}`) || null;
+      continue;
+    }
+    execucao = await gh(`/actions/runs/${execucao.id}`);
+    if (execucao.status !== "completed") continue;
+    if (execucao.conclusion === "success") return estado("pronto");
+    throw new Error(await motivoDaFalha(execucao.id));
+  }
+  throw new Error("Não vi a extração terminar. Confirmou a issue no GitHub?");
+}
+
 // O script do workflow escreve o motivo como ::error::, que vira anotação do job.
 async function motivoDaFalha(id) {
   try {
-    const { jobs } = await (await gh(`/actions/runs/${id}/jobs`)).json();
+    const { jobs } = await gh(`/actions/runs/${id}/jobs`);
     for (const job of jobs) {
-      const notas = await (await gh(`/check-runs/${job.id}/annotations`)).json();
+      const notas = await gh(`/check-runs/${job.id}/annotations`);
       const nota = notas.find((n) => n.annotation_level === "failure" && !/exit code/i.test(n.message));
       if (nota) return nota.message;
     }
@@ -252,29 +227,21 @@ async function motivoDaFalha(id) {
   return "A extração falhou.";
 }
 
-$("#form").addEventListener("submit", async (e) => {
+$("#form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const valor = campo.value.trim();
-  if (campo.type === "password") {
-    if (!valor) return;
-    salvarToken(valor);
-    modoToken(false);
-  } else {
-    pendente = valor;
-  }
   let link;
   try {
-    link = new URL(pendente).href;
+    link = new URL($("#link").value.trim()).href;
   } catch {
     return estado("erro", "Esse link não é válido.");
   }
-  if (!lerToken()) return modoToken(true);
-  try {
-    await extrair(link);
-  } catch (erro) {
-    estado("erro", erro.message);
-    if (!lerToken()) modoToken(true);
-  }
+  nome = slug(link);
+  versao = novaVersao();
+  const pedido = new URLSearchParams({ title: `extrair ${versao}`, body: link });
+  // Abre já no clique, senão o navegador bloqueia a nova aba.
+  window.open(`https://github.com/${DONO}/${REPO}/issues/new?${pedido}`, "_blank", "noopener");
+  estado("carregando");
+  acompanhar().catch((erro) => estado("erro", erro.message));
 });
 
 st.erro.addEventListener("click", () => ($("#motivo").hidden = !$("#motivo").hidden));
@@ -283,9 +250,8 @@ document.querySelectorAll("[data-dl]").forEach((botao) =>
   botao.addEventListener("click", async () => {
     const ext = botao.dataset.dl;
     try {
-      const r = await gh(`/contents/biblioteca/${nome}/${versao}.${ext}?ref=main`, {
-        headers: { Accept: "application/vnd.github.raw" },
-      });
+      const r = await fetch(`${ARQUIVOS}/${nome}/${versao}.${ext}`);
+      if (!r.ok) throw new Error(`O GitHub respondeu ${r.status}.`);
       const url = URL.createObjectURL(await r.blob());
       const a = Object.assign(document.createElement("a"), { href: url, download: `${nome}-${versao}.${ext}` });
       a.click();

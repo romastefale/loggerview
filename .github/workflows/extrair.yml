@@ -1,9 +1,15 @@
 name: Extrair
-# A página dispara este workflow com o link e a versão (data, hora e um sufixo);
-# o run-name carrega a versão para a página achar a execução dela.
-run-name: extrair ${{ inputs.versao }}
+# Dois jeitos de pedir uma extração:
+# - pela página: a lupa abre uma issue já preenchida ("extrair <versão>", com o
+#   link no corpo); você confirma no GitHub e a issue dispara este workflow.
+#   Só issues abertas pelo dono do repositório são atendidas.
+# - à mão, em Actions → Extrair → Run workflow.
+# O run-name é sempre "extrair <versão>", para a página achar a execução dela.
+run-name: ${{ github.event_name == 'issues' && github.event.issue.title || format('extrair {0}', inputs.versao) }}
 
 on:
+  issues:
+    types: [opened]
   workflow_dispatch:
     inputs:
       url:
@@ -11,20 +17,47 @@ on:
         required: true
         type: string
       versao:
-        description: Versão (a página preenche; em branco, o script gera)
+        description: Versão (em branco, o script gera)
         required: false
         type: string
         default: ""
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   extrair:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.user.login == github.repository_owner &&
+       startsWith(github.event.issue.title, 'extrair '))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ler o pedido
+        id: pedido
+        env:
+          URL_MANUAL: ${{ inputs.url }}
+          VERSAO_MANUAL: ${{ inputs.versao }}
+          TITULO: ${{ github.event.issue.title }}
+          CORPO: ${{ github.event.issue.body }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "issues" ]; then
+            url=$(printf '%s\n' "$CORPO" | grep -oE 'https?://[^[:space:]]+' | head -n 1)
+            versao=${TITULO#extrair }
+          else
+            url=$URL_MANUAL
+            versao=$VERSAO_MANUAL
+          fi
+          {
+            echo "url<<FIM"
+            echo "$url"
+            echo "FIM"
+            echo "versao=$versao"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -37,13 +70,13 @@ jobs:
 
       - name: Extrair
         env:
-          URL: ${{ inputs.url }}
-          VERSAO: ${{ inputs.versao }}
+          URL: ${{ steps.pedido.outputs.url }}
+          VERSAO: ${{ steps.pedido.outputs.versao }}
         run: node scripts/extrair.mjs "$URL" "$VERSAO"
 
       - name: Gravar na biblioteca
         env:
-          URL: ${{ inputs.url }}
+          URL: ${{ steps.pedido.outputs.url }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
@@ -57,3 +90,17 @@ jobs:
           done
           echo "::error::Não consegui gravar na biblioteca."
           exit 1
+
+      - name: Fechar a issue
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMERO: ${{ github.event.issue.number }}
+          RESULTADO: ${{ job.status }}
+          EXECUCAO: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULTADO" = "success" ]; then
+            gh issue close "$NUMERO" --repo "$GITHUB_REPOSITORY" --comment "Pronto. Os arquivos estão na biblioteca: $EXECUCAO"
+          else
+            gh issue close "$NUMERO" --repo "$GITHUB_REPOSITORY" --reason "not planned" --comment "A extração falhou. Motivo na execução: $EXECUCAO"
+          fi
