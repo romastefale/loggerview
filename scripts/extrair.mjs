@@ -36,7 +36,10 @@ const versao = process.argv[3]?.trim() || novaVersao();
 if (!/^[a-z0-9-]+$/.test(versao)) falha("Versão inválida.");
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ userAgent: UA, locale: "pt-BR" });
+  // bypassCSP: sites com Content-Security-Policy (o GitHub, por exemplo) recusam o
+  // script do Readability que injetamos; isso só libera o nosso script, o conteúdo é o mesmo.
+  const contexto = await browser.newContext({ userAgent: UA, locale: "pt-BR", bypassCSP: true });
+  const page = await contexto.newPage();
 
   let resposta;
   try {
@@ -53,7 +56,8 @@ try {
   await page.addScriptTag({ path: READABILITY });
   const artigo = await page.evaluate(() => {
     // O Readability altera o documento que recebe; trabalha numa cópia.
-    const lido = new Readability(document.cloneNode(true)).parse();
+    // keepClasses: as classes guardam a linguagem dos blocos de código (language-js etc.).
+    const lido = new Readability(document.cloneNode(true), { keepClasses: true }).parse();
     return lido && { titulo: lido.title, conteudo: lido.content, idioma: lido.lang };
   });
   if (!artigo?.conteudo?.trim()) falha("Não encontrei o conteúdo da página.");
@@ -68,6 +72,22 @@ try {
   const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-" });
   // Tabelas ficam em HTML dentro do .md: o Turndown sozinho não gera tabela Markdown.
   turndown.keep(["table"]);
+  // Todo <pre> vira bloco de código com o texto exatamente como está. O Turndown só
+  // reconhece <pre><code>; o GitHub e muitos sites usam <pre> sozinho, e aí o código
+  // virava parágrafo com caracteres escapados.
+  turndown.addRule("codigo", {
+    filter: "pre",
+    replacement: (_conteudo, no) => {
+      const codigo = no.textContent.replace(/\n$/, "");
+      const classes = [no, no.querySelector("code"), no.parentNode]
+        .map((el) => el?.getAttribute?.("class") || "")
+        .join(" ");
+      const linguagem = /(?:language|lang|highlight-source)-([\w#+.-]+)/.exec(classes)?.[1] || "";
+      const crases = Math.max(2, ...(codigo.match(/`+/g) || []).map((s) => s.length));
+      const cerca = "`".repeat(crases + 1);
+      return `\n\n${cerca}${linguagem}\n${codigo}\n${cerca}\n\n`;
+    },
+  });
   const md = `# ${titulo}\n\nFonte: <${alvo.href}>  \nExtraído em ${quando}\n\n---\n\n${turndown.turndown(artigo.conteudo)}\n`;
   await writeFile(`${pasta}/${versao}.md`, md);
 
@@ -80,6 +100,9 @@ try {
   });
 
   console.log(`${pasta}/${versao}.{md,html,pdf}`);
+} catch (erro) {
+  // Qualquer erro inesperado também chega à página como motivo do alerta.
+  falha(`A extração falhou: ${erro.message.split("\n")[0]}`);
 } finally {
   await browser.close();
 }
