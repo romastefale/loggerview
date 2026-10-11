@@ -209,10 +209,18 @@ table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}
 th,td{border:1px solid var(--linha);padding:.4rem .7rem;text-align:left}
 hr{border:0;border-top:1px solid var(--linha);margin:2rem 0}
 @page{size:A4;margin:0}
+/* Impressão (o PDF): só recursos que qualquer visualizador desenha. Sem as manchas
+   com máscara e sem transparência (viram máscaras e grupos que vários leitores
+   de PDF mostram em branco), cores sólidas, e fontes DejaVu (as da máquina do
+   GitHub) no lugar da JetBrains Mono e da fonte do sistema, que o Chromium pode
+   embutir como fonte Type 3. */
 @media print{
-  body{padding:14mm 12mm}
-  main{max-width:none;background:rgba(255,255,255,.78);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
+  html::after{display:none}
+  body{padding:14mm 12mm;font-family:"DejaVu Sans","Liberation Sans",sans-serif}
+  main{max-width:none;background:#fbfaff;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
     -webkit-box-decoration-break:clone;box-decoration-break:clone}
+  :root{--bloco:#efedf7;--linha:#dedbe9;--sub:#55536a}
+  pre,pre code,code,.marca{font-family:"DejaVu Sans Mono","Liberation Mono",monospace}
   pre{white-space:pre-wrap;break-inside:avoid}
   h1,h2,h3,h4{break-after:avoid}
 }
