@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telegraph API</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%9D%AF&display=swap">
+<style>
+:root{
+  --page-edge:#8b82e6;
+  --base:linear-gradient(180deg,#8b82e6 0%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 88%,#8b82e6 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(255 158 205 / .72), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(127 207 255 / .70), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(255 212 154 / .66), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / .62), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(201 166 255 / .62), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(255 184 168 / .50), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(169 200 255 / .56), transparent 70%);
+  --text:#1c1c1e; --forte:#0a0b0d; --sub:rgba(0,0,0,.6);
+  --vidro:rgba(238,240,245,.3); --frost:blur(5px) saturate(1.15);
+  --bloco:rgba(255,255,255,.55); --linha:rgba(0,0,0,.12);
+  --sombra:0 10px 28px rgba(30,20,90,.16), 0 2px 6px rgba(30,20,90,.08);
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --page-edge:#1b1646;
+  --base:linear-gradient(180deg,#1b1646 0%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 88%,#1b1646 100%);
+  --campos:
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(214 70 160 / .44), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(40 160 220 / .42), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(230 140 60 / .28), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(40 200 170 / .32), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(120 80 230 / .42), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(200 80 140 / .28), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 120 220 / .34), transparent 70%);
+  --text:#f5f5f7; --forte:#fff; --sub:rgba(255,255,255,.6);
+  --vidro:rgba(18,18,20,.3); --bloco:rgba(0,0,0,.32); --linha:rgba(255,255,255,.14);
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
+html::before{background:var(--base)}
+html::after{background:var(--campos);
+  -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
+          mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%)}
+body{margin:0;padding:clamp(16px,4vw,48px) max(16px,env(safe-area-inset-left));background-color:var(--page-edge);
+  color:var(--text);font:16px/1.65 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+main{max-width:48rem;margin:0 auto;padding:clamp(22px,4vw,40px);border-radius:30px;background:var(--vidro);
+  -webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost);box-shadow:var(--sombra)}
+.marca{margin:0 0 1.2rem;font:700 15px/1 var(--mono);letter-spacing:-.03em;color:var(--forte)}
+.marca .chev{font-family:"Noto Sans Symbols 2",sans-serif;font-weight:400;font-size:.837em;vertical-align:.075em}
+header{margin-bottom:1.8rem;padding-bottom:1.2rem;border-bottom:1px solid var(--linha)}
+header h1{margin:0 0 .5rem;font-size:clamp(1.6rem,4vw,2.1rem);line-height:1.2;letter-spacing:-.02em;color:var(--forte)}
+header p{margin:0;font-size:.9rem;color:var(--sub);overflow-wrap:anywhere}
+h1,h2,h3,h4,h5,h6{color:var(--forte);line-height:1.25;letter-spacing:-.01em;margin:1.8em 0 .6em}
+a{color:inherit;text-underline-offset:2px}
+img,video{max-width:100%;height:auto;border-radius:12px}
+code{font-family:var(--mono);font-size:.88em;padding:.1em .35em;border-radius:6px;background:var(--bloco)}
+pre{overflow-x:auto;padding:1rem 1.1rem;border-radius:16px;background:var(--bloco);white-space:pre;line-height:1.5}
+pre,pre code{font-family:var(--mono);font-size:.85rem}
+pre code{padding:0;background:none}
+blockquote{margin:1.2rem 0;padding:.2rem 1.1rem;border-left:3px solid var(--sub);color:var(--sub)}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}
+th,td{border:1px solid var(--linha);padding:.4rem .7rem;text-align:left}
+hr{border:0;border-top:1px solid var(--linha);margin:2rem 0}
+@page{size:A4;margin:0}
+@media print{
+  body{padding:14mm 12mm}
+  main{max-width:none;background:rgba(255,255,255,.78);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
+    -webkit-box-decoration-break:clone;box-decoration-break:clone}
+  pre{white-space:pre-wrap;break-inside:avoid}
+  h1,h2,h3,h4{break-after:avoid}
+}
+</style>
+</head>
+<body>
+<main>
+<p class="marca"><span class="chev">❯</span>_loggerview</p>
+<header>
+<h1>Telegraph API</h1>
+<p>Fonte: <a href="https://telegra.ph/api">https://telegra.ph/api</a> · Extraído em 10 de outubro de 2026</p>
+</header>
+<article>
+<div id="readability-page-1" class="page"><div class="ql-editor" contenteditable="false"><h2 dir="auto" data-placeholder="Title" data-label="Title">Telegraph API</h2><address dir="auto" data-placeholder="Your name" data-label="Author" class="empty"><br></address><figure contenteditable="false"><p><img src="https://telegra.ph/file/6a5b15e7eb4d7329ca7af.jpg"></p><span class="cursor_wrapper" contenteditable="true"></span><figcaption dir="auto" class="editable_text" data-placeholder="Caption (optional)"></figcaption></figure><p dir="auto"><strong>Telegra.ph</strong> is a minimalist publishing tool that allows you to create richly formatted posts and push them to the Web in just a click. <strong>Telegraph</strong> posts also get beautiful <a href="https://telegram.org/blog/instant-view" target="_blank">Instant View</a> pages on <strong>Telegram</strong>.</p><p dir="auto">To maintain the purity of the basic interface, we launched the <a href="https://telegram.me/telegraph" target="_blank"><strong>@Telegraph</strong></a><strong> bot</strong> for those who require advanced features. This bot can help you manage your articles across any number of devices and get page view statistics for any Telegraph page.</p><p dir="auto">Anyone can enjoy the simplicity of Telegraph publishing, not just <a href="https://telegram.org/" target="_blank">Telegram</a> users. For this reason, all developers are welcome to use this <strong>Telegraph API</strong> to create bots like <a href="https://telegram.me/telegraph" target="_blank">@Telegraph</a> for any other platform, or even standalone interfaces.</p><p dir="auto">All queries to the Telegraph API must be served over <strong>HTTPS</strong> and should be presented in this form: <code>https://api.telegra.ph/%method%</code>. </p><p dir="auto">If a <code>path</code> parameter is present, you can also use this form: <code>https://api.telegra.ph/%method%/%path%</code>.</p><h4 dir="auto" id="1.-Methods"><a href="#Available-methods">1. Methods</a></h4><ul dir="auto"><li><a href="#createAccount">createAccount</a></li><li><a href="#createPage">createPage</a></li><li><a href="#editAccountInfo">editAccountInfo</a></li><li><a href="#editPage">editPage</a></li><li><a href="#getAccountInfo">getAccountInfo</a></li><li><a href="#getPage">getPage</a></li><li><a href="#getPageList">getPageList</a></li><li><a href="#getViews">getViews</a></li><li><a href="#revokeAccessToken">revokeAccessToken</a></li></ul><h4 dir="auto" id="2.-Types"><a href="#Available-types">2. Types</a></h4><ul dir="auto"><li><a href="#Account">Account</a></li><li><a href="#Node">Node</a></li><li><a href="#NodeElement">NodeElement</a></li><li><a href="#Page">Page</a></li><li><a href="#PageList">PageList</a></li><li><a href="#PageViews">PageViews</a></li></ul><h4 dir="auto" id="3.-Content-format"><a href="#Content-format">3. Content format</a></h4><h3 dir="auto" id="Available-methods">Available methods</h3><p dir="auto">We support&nbsp;<strong>GET</strong>&nbsp;and&nbsp;<strong>POST</strong>&nbsp;HTTP methods. The response contains a JSON object, which always has a Boolean field <code>ok</code>. If <code>ok</code> equals <em>true</em>, the request was successful, and the result of the query can be found in the <code>result</code> field. In case of an unsuccessful request, <code>ok</code> equals <em>false,</em> and the error is explained in the <code>error</code> field (e.g. SHORT_NAME_REQUIRED). All queries must be made using UTF-8.</p><h4 dir="auto" id="createAccount">createAccount</h4><p dir="auto">Use this method to create a new Telegraph account. Most users only need one account, but this can be useful for channel administrators who would like to keep individual author names and profile links for each of their channels. On success, returns an <a href="#Account">Account</a> object with the regular fields and an additional <code>access_token</code> field.</p><ul dir="auto"><li><strong>short_name</strong> (<em>String, 1-32 characters</em>)<br class="inline"><em>Required</em>. Account name, helps users with several accounts remember which they are currently using. Displayed to the user above the "Edit/Publish" button on Telegra.ph, other users don't see this name.</li><li><strong>author_name</strong> (<em>String, 0-128 characters</em>)<br class="inline">Default author name used when creating new articles.</li><li><strong>author_url</strong> (<em>String, 0-512 characters</em>)<br class="inline">Default profile link, opened when users click on the author's name below the title. Can be any link, not necessarily to a Telegram profile or channel.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/createAccount?short_name=Sandbox&amp;author_name=Anonymous" target="_blank">https://api.telegra.ph/createAccount?short_name=Sandbox&amp;author_name=Anonymous</a></blockquote><h4 dir="auto" id="editAccountInfo">editAccountInfo</h4><p dir="auto">Use this method to update information about a Telegraph account. Pass only the parameters that you want to edit. On success, returns an <a href="#Account">Account</a> object with the default fields.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li><li><strong>short_name</strong> (<em>String, 1-32 characters</em>)<br class="inline">New account name.</li><li><strong>author_name</strong> (<em>String, 0-128 characters</em>)<br class="inline">New default author name used when creating new articles.</li><li><strong>author_url</strong> (<em>String, 0-512 characters</em>)<br class="inline">New default profile link, opened when users click on the author's name below the title. Can be any link, not necessarily to a Telegram profile or channel.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/editAccountInfo?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;short_name=Sandbox&amp;author_name=Anonymous" target="_blank">https://api.telegra.ph/editAccountInfo?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;short_name=Sandbox&amp;author_name=Anonymous</a></blockquote><h4 dir="auto" id="getAccountInfo">getAccountInfo</h4><p dir="auto">Use this method to get information about a Telegraph account. Returns an <a href="#Account">Account</a> object on success.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li><li><strong>fields</strong> (<em>Array of String, default = [“short_name”,“author_name”,“author_url”]</em>)<br class="inline">List of account fields to return. Available fields: <em>short_name</em>, <em>author_name</em>, <em>author_url</em>, <em>auth_url</em>, <em>page_count</em>.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/getAccountInfo?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;fields=[%22short_name%22,%22page_count%22]" target="_blank">https://api.telegra.ph/getAccountInfo?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;fields=["short_name","page_count"]</a></blockquote><h4 dir="auto" id="revokeAccessToken">revokeAccessToken</h4><p dir="auto">Use this method to revoke access_token and generate a new one, for example, if the user would like to reset all connected sessions, or you have reasons to believe the token was compromised. On success, returns an <a href="#Account">Account</a> object with new <code>access_token</code> and <code>auth_url</code> fields.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/revokeAccessToken?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722" target="_blank">https://api.telegra.ph/revokeAccessToken?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722</a></blockquote><h4 dir="auto" id="createPage">createPage</h4><p dir="auto">Use this method to create a new Telegraph page. On success, returns a <a href="#Page">Page</a> object.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li><li><strong>title</strong> (<em>String, 1-256 characters</em>)<br class="inline"><em>Required</em>. Page title.</li><li><strong>author_name</strong> (<em>String, 0-128 characters</em>)<strong><br class="inline"></strong>Author name, displayed below the article's title.</li><li><strong>author_url</strong> (<em>String, 0-512 characters</em>)<strong><br class="inline"></strong>Profile link, opened when users click on the author's name below the title. Can be any link, not necessarily to a Telegram profile or channel.</li><li><strong>content</strong> (<em>Array of </em><a href="#Node"><em>Node</em></a><em>, up to 64 KB</em>)<strong><em><br class="inline"></em></strong><em>Required</em>. <a href="#Content-format">Content</a> of the page. </li><li><strong>return_content</strong> (<em>Boolean, default = false</em>)<br class="inline">If&nbsp;<em>true</em>, a <code>content</code> field will be returned in the <a href="#Page">Page</a> object (see: <a href="#Content-format">Content format</a>).</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/createPage?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;title=Sample+Page&amp;author_name=Anonymous&amp;content=[%7B%22tag%22:%22p%22,%22children%22:[%22Hello,+world!%22]%7D]&amp;return_content=true" target="_blank">https://api.telegra.ph/createPage?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;title=Sample+Page&amp;author_name=Anonymous&amp;content=[{"tag":"p","children":["Hello,+world!"]}]&amp;return_content=true</a></blockquote><h4 dir="auto" id="editPage">editPage</h4><p dir="auto">Use this method to edit an existing Telegraph page. On success, returns a <a href="#Page">Page</a> object.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li><li><strong>path</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Path to the page.</li><li><strong>title</strong> (<em>String, 1-256 characters</em>)<br class="inline"><em>Required</em>. Page title.</li><li><strong>content</strong> (<em>Array of </em><a href="#Node"><em>Node</em></a><em>, up to 64 KB</em>)<strong><em><br class="inline"></em></strong><em>Required</em>. <a href="#Content-format">Content</a> of the page.</li><li><strong>author_name</strong> (<em>String, 0-128 characters</em>)<br class="inline">Author name, displayed below the article's title.</li><li><strong>author_url</strong> (<em>String, 0-512 characters</em>)<br class="inline">Profile link, opened when users click on the author's name below the title. Can be any link, not necessarily to a Telegram profile or channel.</li><li><strong>return_content</strong> (<em>Boolean, default = false</em>)<br class="inline">If&nbsp;<em>true</em>, a <code>content</code> field will be returned in the <a href="#Page">Page</a> object.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/editPage/Sample-Page-12-15?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;title=Sample+Page&amp;author_name=Anonymous&amp;content=[%7B%22tag%22:%22p%22,%22children%22:[%22Hello,+world!%22]%7D]&amp;return_content=true" target="_blank">https://api.telegra.ph/editPage/Sample-Page-12-15?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;title=Sample+Page&amp;author_name=Anonymous&amp;content=[{"tag":"p","children":["Hello,+world!"]}]&amp;return_content=true</a></blockquote><h4 dir="auto" id="getPage">getPage</h4><p dir="auto">Use this method to get a Telegraph page. Returns a <a href="#Page">Page</a> object on success.</p><ul dir="auto"><li><strong>path</strong> (<em>String</em>)<strong><br class="inline"></strong><em>Required</em>. Path to the Telegraph page (in the format <code>Title-12-31</code>, i.e. everything that comes after <code>http://telegra.ph/</code>).</li><li><strong>return_content</strong> (<em>Boolean, default = false</em>)<br class="inline">If&nbsp;<em>true</em>, <code>content</code> field will be returned in <a href="#Page">Page</a> object.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/getPage/Sample-Page-12-15?return_content=true" target="_blank">https://api.telegra.ph/getPage/Sample-Page-12-15?return_content=true</a></blockquote><h4 dir="auto" id="getPageList">getPageList</h4><p dir="auto">Use this method to get a list of pages belonging to a Telegraph account. Returns a&nbsp;<a href="#PageList">PageList</a>&nbsp;object, sorted by most recently created pages first.</p><ul dir="auto"><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Access token of the Telegraph account.</li><li><strong>offset</strong> (<em>Integer, default = 0</em>)<br class="inline">Sequential number of the first page to be returned.</li><li><strong>limit</strong> (<em>Integer, 0-200, default = 50</em>)<br class="inline">Limits the number of pages to be retrieved.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/getPageList?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;limit=3" target="_blank">https://api.telegra.ph/getPageList?access_token=d3b25feccb89e508a9114afb82aa421fe2a9712b963b387cc5ad71e58722&amp;limit=3</a></blockquote><h4 dir="auto" id="getViews">getViews</h4><p dir="auto">Use this method to get the number of views for a Telegraph article. Returns&nbsp;a&nbsp;<a href="#PageViews">PageViews</a>&nbsp;object on success. By default, the total number of page views will be returned.</p><ul dir="auto"><li><strong>path</strong> (<em>String</em>)<br class="inline"><em>Required</em>. Path to the Telegraph page (in the format <code>Title-12-31</code>, where 12 is the month and 31 the day the article was first published).</li><li><strong>year</strong> (<em>Integer, 2000-2100</em>)<br class="inline"><em>Required if month is passed</em>. If passed, the number of page views for the requested year will be returned.</li><li><strong>month</strong> (<em>Integer, 1-12</em>)<br class="inline"><em>Required if day is passed</em>. If passed, the number of page views for the requested month will be returned.</li><li><strong>day</strong> (<em>Integer, 1-31</em>)<br class="inline"><em>Required if hour is passed</em>. If passed, the number of page views for the requested day will be returned.</li><li><strong>hour</strong> (<em>Integer, 0-24</em>)<br class="inline">If passed, the number of page views for the requested hour will be returned.</li></ul><blockquote dir="auto"><strong>Sample request<br class="inline"></strong><a href="https://api.telegra.ph/getViews/Sample-Page-12-15?year=2016&amp;month=12" target="_blank">https://api.telegra.ph/getViews/Sample-Page-12-15?year=2016&amp;month=12</a></blockquote><h3 dir="auto" id="Available-types">Available types</h3><p dir="auto">All types used in the Telegraph API responses are represented as JSON-objects. Optional&nbsp;fields may be not returned when irrelevant.</p><h4 dir="auto" id="Account">Account</h4><p dir="auto">This object represents a Telegraph account. </p><ul dir="auto"><li><strong>short_name</strong> (<em>String</em>)<strong><br class="inline"></strong>Account name, helps users with several accounts remember which they are currently using. Displayed to the user above the "Edit/Publish" button on Telegra.ph, other users don't see this name.</li><li><strong>author_name</strong> (<em>String</em>)<strong><br class="inline"></strong>Default author name used when creating new articles.</li><li><strong>author_url</strong> (<em>String</em>)<strong><br class="inline"></strong>Profile link, opened when users click on the author's name below the title. Can be any link, not necessarily to a Telegram profile or channel.</li><li><strong>access_token</strong> (<em>String</em>)<br class="inline"><em>Optional. Only returned by the </em><a href="#createAccount"><em>createAccount</em></a><em> and </em><a href="#revokeAccessToken"><em>revokeAccessToken</em></a><em> method. </em>Access token of the Telegraph account.</li><li><strong>auth_url</strong> (<em>String</em>)<br class="inline"><em>Optional</em>.&nbsp;URL to authorize a browser on <a href="https://telegra.ph/">telegra.ph</a> and connect it to a Telegraph account. This URL is valid for only one use and for 5 minutes only.</li><li><strong>page_count</strong> (<em>Integer</em>)<br class="inline"><em>Optional</em>.&nbsp;Number of pages belonging to the Telegraph account.</li></ul><h4 dir="auto" id="PageList">PageList</h4><p dir="auto">This object represents a list of Telegraph articles belonging to an account. Most recently created articles first.</p><ul dir="auto"><li><strong>total_count</strong> (<em>Integer</em>)<br class="inline">Total number of pages belonging to the target Telegraph account.</li><li><strong>pages</strong> (<em>Array of </em><a href="#Page"><em>Page</em></a>)<br class="inline">Requested pages of the target Telegraph account.</li></ul><h4 dir="auto" id="Page">Page</h4><p dir="auto">This object represents a page on Telegraph.</p><ul dir="auto"><li><strong>path</strong> (<em>String</em>)<br class="inline">Path to the page.</li><li><strong>url</strong> (<em>String</em>)<br class="inline">URL of the page.</li><li><strong>title</strong> (<em>String</em>)<br class="inline">Title of the page.</li><li><strong>description</strong> (<em>String</em>)<br class="inline">Description of the page.</li><li><strong>author_name</strong> (<em>String</em>)<br class="inline"><em>Optional</em>.&nbsp;Name of the author, displayed below the title.</li><li><strong>author_url</strong> (<em>String</em>)<br class="inline"><em>Optional</em>.&nbsp;Profile link, opened when users click on the author's name below the title.  Can be any link, not necessarily to a Telegram profile or channel.</li><li><strong>image_url</strong> (<em>String</em>)<br class="inline"><em>Optional</em>.&nbsp;Image URL of the page.</li><li><strong>content</strong> (<em>Array of </em><a href="#Node"><em>Node</em></a>)<br class="inline"><em>Optional</em>.&nbsp;<a href="#Content-format">Content</a> of the page.</li><li><strong>views</strong> (<em>Integer</em>)<br class="inline">Number of page views for the page.</li><li><strong>can_edit</strong> (<em>Boolean</em>)<br class="inline"><em>Optional. Only returned if access_token passed</em>.&nbsp;<em>True</em>, if the target Telegraph account can edit the page.</li></ul><h4 dir="auto" id="PageViews">PageViews</h4><p dir="auto">This object represents the number of page views for a Telegraph article.</p><ul dir="auto"><li><strong>views</strong> (<em>Integer</em>)<br class="inline">Number of page views for the target page.</li></ul><h4 dir="auto" id="Node">Node</h4><p dir="auto">This abstract object represents a DOM Node. It can be a <em>String</em> which represents a DOM text node or a <a href="#NodeElement">NodeElement</a> object.</p><h4 dir="auto" id="NodeElement">NodeElement</h4><p dir="auto">This object represents a DOM element node.</p><ul dir="auto"><li><strong>tag</strong> (<em>String</em>)<strong><br class="inline"></strong>Name of the DOM element. Available tags: <em>a</em>, <em>aside</em>, <em>b</em>, <em>blockquote</em>, <em>br</em>, <em>code</em>, <em>em</em>, <em>figcaption</em>, <em>figure</em>, <em>h3</em>, <em>h4</em>, <em>hr</em>, <em>i</em>, <em>iframe</em>, <em>img</em>, <em>li</em>, <em>ol</em>, <em>p</em>, <em>pre</em>, <em>s</em>, <em>strong</em>, <em>u</em>, <em>ul</em>, <em>video</em>.</li><li><strong>attrs</strong> (<em>Object</em>)<strong><br class="inline"></strong><em>Optional. </em>Attributes of the DOM element. Key of object represents name of attribute, value represents value of attribute. Available attributes: <em>href</em>, <em>src</em>.</li><li><strong>children</strong> (<em>Array of </em><a href="#Node"><em>Node</em></a>)<strong><br class="inline"></strong><em>Optional. </em>List of child nodes for the DOM element.</li></ul><h3 dir="auto" id="Content-format">Content format</h3><p dir="auto">The Telegraph API uses a DOM-based format to represent the content of the page. Below is an example of code in javascript which explains how you can use it:</p><pre spellcheck="false" dir="auto">function domToNode(domNode) {
+  if (domNode.nodeType == domNode.TEXT_NODE) {
+    return domNode.data;
+  }
+  if (domNode.nodeType != domNode.ELEMENT_NODE) {
+  &nbsp;&nbsp;return false;
+  }
+&nbsp; var nodeElement = {};
+&nbsp; nodeElement.tag = domNode.tagName.toLowerCase();
+&nbsp; for (var i = 0; i &lt; domNode.attributes.length; i++) {
+&nbsp;&nbsp;  var attr = domNode.attributes[i];
+&nbsp;&nbsp;  if (attr.name == 'href' || attr.name == 'src') {
+&nbsp;&nbsp;&nbsp;   if (!nodeElement.attrs) {
+&nbsp;&nbsp;&nbsp;&nbsp;    nodeElement.attrs = {};
+&nbsp;&nbsp;&nbsp;   }
+&nbsp;&nbsp;&nbsp;   nodeElement.attrs[attr.name] = attr.value;
+&nbsp;&nbsp;  }
+&nbsp; }
+&nbsp; if (domNode.childNodes.length &gt; 0) {
+  &nbsp;&nbsp;nodeElement.children = [];
+  &nbsp;&nbsp;for (var i = 0; i &lt; domNode.childNodes.length; i++) {
+  &nbsp;&nbsp;&nbsp; var child = domNode.childNodes[i];
+  &nbsp;&nbsp;&nbsp; nodeElement.children.push(domToNode(child));
+  &nbsp;&nbsp;}
+&nbsp; }
+&nbsp; return nodeElement;
+}
+
+function nodeToDom(node) {
+  if (typeof node === 'string' || node instanceof String) {
+  &nbsp;&nbsp;return document.createTextNode(node);
+  }
+  if (node.tag) {
+  &nbsp;&nbsp;var domNode = document.createElement(node.tag);
+  &nbsp;&nbsp;if (node.attrs) {
+  &nbsp;&nbsp;&nbsp; for (var name in node.attrs) {
+    &nbsp;&nbsp;&nbsp;&nbsp;var value = node.attrs[name];
+    &nbsp;&nbsp;&nbsp;&nbsp;domNode.setAttribute(name, value);
+    &nbsp;&nbsp;}
+  &nbsp;&nbsp;}
+  } else {
+  &nbsp;&nbsp;var domNode = document.createDocumentFragment();
+  }
+&nbsp; if (node.children) {
+&nbsp;&nbsp;  for (var i = 0; i &lt; node.children.length; i++) {
+&nbsp;&nbsp;&nbsp;   var child = node.children[i];
+&nbsp;&nbsp;&nbsp;   domNode.appendChild(nodeToDom(child));
+&nbsp;&nbsp;  }
+&nbsp; }
+&nbsp; return domNode;
+}
+
+var article = document.getElementById('article');
+var content = domToNode(article).children;
+$.ajax('https://api.telegra.ph/createPage', {
+&nbsp; data: {
+  &nbsp;&nbsp;access_token:&nbsp;  '%access_token%',
+  &nbsp;&nbsp;title:&nbsp;&nbsp;&nbsp;&nbsp;     &nbsp;'Title of page',
+  &nbsp;&nbsp;content:&nbsp;&nbsp;&nbsp;    &nbsp;JSON.stringify(content),
+  &nbsp;&nbsp;return_content: true
+  },
+  type: 'POST',
+&nbsp; dataType: 'json',
+&nbsp; success: function(data) {
+  &nbsp;&nbsp;if (data.content) {
+  &nbsp;&nbsp;&nbsp; while (article.firstChild) {
+    &nbsp;&nbsp;&nbsp;&nbsp;article.removeChild(article.firstChild);
+  &nbsp;&nbsp;&nbsp; }
+  &nbsp;&nbsp;&nbsp; article.appendChild(nodeToDom({children: data.content}));
+  &nbsp;&nbsp;}
+&nbsp; }
+});
+</pre></div></div>
+</article>
+</main>
+</body>
+</html>
