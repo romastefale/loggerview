@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#8b82e6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1646" media="(prefers-color-scheme: dark)">
 <title>Logger View</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +19,7 @@
    sólida das barras (--page-edge). */
 :root{
   --page-edge:#8b82e6;
-  --base:linear-gradient(180deg,#8b82e6 0%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 88%,#8b82e6 100%);
+  --base:linear-gradient(180deg,#8b82e6 0%,#8b82e6 6%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 78%,#8b82e6 86%,#8b82e6 100%);
   --campos:
     radial-gradient(44vmax 26vmax at 10% 36%, rgb(255 158 205 / .72), transparent 70%),
     radial-gradient(40vmax 28vmax at 90% 40%, rgb(127 207 255 / .70), transparent 70%),
@@ -36,7 +38,7 @@
 }
 @media (prefers-color-scheme:dark){:root{
   --page-edge:#1b1646;
-  --base:linear-gradient(180deg,#1b1646 0%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 88%,#1b1646 100%);
+  --base:linear-gradient(180deg,#1b1646 0%,#1b1646 6%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 78%,#1b1646 86%,#1b1646 100%);
   --campos:
     radial-gradient(44vmax 26vmax at 10% 36%, rgb(214 70 160 / .44), transparent 70%),
     radial-gradient(40vmax 28vmax at 90% 40%, rgb(40 160 220 / .42), transparent 70%),
@@ -50,6 +52,8 @@
   --focus:rgba(245,245,247,.62);
   color-scheme:dark;
 }}
+html{background-color:var(--page-edge)}
+html,body{touch-action:pan-x pan-y}
 html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
 html::before{background:var(--base)}
 html::after{background:var(--campos);
@@ -67,6 +71,12 @@ body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center
   padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
   color:var(--text);background-color:var(--page-edge);
   font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+/* Durante a edição, a posição e a altura acompanham a área realmente visível. */
+html.campo-em-edicao{overflow:hidden;overscroll-behavior:none}
+body.campo-em-edicao{position:fixed;top:0;left:0;width:var(--viewport-width,100%);
+  height:var(--viewport-height,100svh);min-height:0;overflow:hidden;
+  place-items:start center;overscroll-behavior:none;
+  transform:translate3d(var(--viewport-shift-x,0px),var(--viewport-shift-y,0px),0)}
 button{font:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 .frost{background:var(--vidro-tint);-webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost)}
@@ -112,7 +122,6 @@ button{font:inherit;cursor:pointer}
 @media (max-width:480px){.downloads{gap:.5em}.btn{padding:.75em .8em;gap:.35em}}
 .motivo{margin:-.5em 0 0;font-size:.85em;color:var(--bar-sub);text-align:center}
 .motivo[hidden]{display:none}
-
 </style>
 </head>
 <body>
@@ -265,6 +274,50 @@ document.querySelectorAll("[data-dl]").forEach((botao) =>
     }
   }),
 );
+
+// Mantém o campo visível enquanto o teclado está aberto, sem rolar o documento.
+const campoLink = $("#link");
+const raiz = document.documentElement;
+let frameViewport = 0;
+
+function sincronizarViewportDoCampo() {
+  if (!raiz.classList.contains("campo-em-edicao")) return;
+  if (frameViewport) cancelAnimationFrame(frameViewport);
+  frameViewport = requestAnimationFrame(() => {
+    frameViewport = 0;
+    const viewport = window.visualViewport;
+    raiz.style.setProperty("--viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+    raiz.style.setProperty("--viewport-width", `${viewport?.width ?? window.innerWidth}px`);
+
+    // Mede a posição sem transformação para compensar deslocamentos da viewport visual.
+    const transformAtual = document.body.style.transform;
+    document.body.style.transform = "none";
+    const limites = document.body.getBoundingClientRect();
+    raiz.style.setProperty("--viewport-shift-x", `${-limites.left}px`);
+    raiz.style.setProperty("--viewport-shift-y", `${-limites.top}px`);
+    document.body.style.transform = transformAtual;
+  });
+}
+
+campoLink.addEventListener("focus", () => {
+  raiz.classList.add("campo-em-edicao");
+  document.body.classList.add("campo-em-edicao");
+  sincronizarViewportDoCampo();
+});
+
+campoLink.addEventListener("blur", () => {
+  window.setTimeout(() => {
+    if (document.activeElement === campoLink) return;
+    raiz.classList.remove("campo-em-edicao");
+    document.body.classList.remove("campo-em-edicao");
+    ["--viewport-height", "--viewport-width", "--viewport-shift-x", "--viewport-shift-y"]
+      .forEach((propriedade) => raiz.style.removeProperty(propriedade));
+  }, 300);
+});
+
+window.visualViewport?.addEventListener("resize", sincronizarViewportDoCampo);
+window.visualViewport?.addEventListener("scroll", sincronizarViewportDoCampo);
+window.addEventListener("resize", sincronizarViewportDoCampo);
 </script>
 </body>
 </html>
