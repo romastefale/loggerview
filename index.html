@@ -3,24 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#4a78e8" id="meta-theme-color">
+<!-- Cor da barra do navegador: uma por modo, escolhida pelo próprio navegador. O
+     Safari nem sempre redesenha a barra quando um script troca essa cor ao vivo. -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#4a78e8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1838">
 <script>
-/* Sincroniza a cor da interface do navegador quando o tema do sistema muda. */
+/* Ao trocar o modo claro/escuro com a página aberta, o Safari às vezes mantém o fundo
+   e o vidro (backdrop-filter) do modo anterior. A classe "repintando" desliga o
+   desfoque e mexe no fundo por um quadro, o que obriga o redesenho. */
 (() => {
   const esquemaEscuro = window.matchMedia("(prefers-color-scheme: dark)");
-  const metaTema = document.querySelector('meta[name="theme-color"]');
-  if (!metaTema) return;
-
-  function atualizarCorDoNavegador() {
-    metaTema.setAttribute("content", esquemaEscuro.matches ? "#0d1838" : "#4a78e8");
+  const raiz = document.documentElement;
+  function repintar() {
+    raiz.classList.add("repintando");
+    requestAnimationFrame(() => requestAnimationFrame(() => raiz.classList.remove("repintando")));
   }
-
-  atualizarCorDoNavegador();
-  if (typeof esquemaEscuro.addEventListener === "function") {
-    esquemaEscuro.addEventListener("change", atualizarCorDoNavegador);
-  } else if (typeof esquemaEscuro.addListener === "function") {
-    esquemaEscuro.addListener(atualizarCorDoNavegador);
-  }
+  if (typeof esquemaEscuro.addEventListener === "function") esquemaEscuro.addEventListener("change", repintar);
+  else if (typeof esquemaEscuro.addListener === "function") esquemaEscuro.addListener(repintar);
 })();
 </script>
 <title>Logger View</title>
@@ -74,6 +73,9 @@ html{background-color:var(--page-edge);isolation:isolate}
 html,body{touch-action:pan-x pan-y}
 html::before,html::after{content:"";position:fixed;z-index:-1;left:var(--visual-viewport-offset-left,0px);right:auto;width:var(--viewport-width,100%);top:var(--visual-viewport-offset-top,0px);height:100vh;height:100lvh;pointer-events:none}
 html::before{background:var(--base)}
+/* Redesenho forçado na troca de modo (ver o script no <head>). */
+html.repintando .frost{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.repintando::before,html.repintando::after{opacity:.995}
 /* Com o teclado aberto, o fundo ocupa só a área visível: o degradê e as manchas se
    reorganizam nela, com as pontas sólidas no topo e logo acima do teclado. A
    transição curta acompanha a animação do teclado em vez de pular. */
