@@ -150,16 +150,16 @@ function documento({ titulo, link, quando, conteudo, idioma }) {
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%9D%AF&display=swap">
 <style>
 :root{
-  --page-edge:#8b82e6;
-  --base:linear-gradient(180deg,#8b82e6 0%,#c4bbf6 12%,#f2ebfb 28%,#eef2ff 50%,#fbecf3 72%,#c4bbf6 88%,#8b82e6 100%);
+  --page-edge:#4a78e8;
+  --base:linear-gradient(180deg,#4a78e8 0%,#4a78e8 2%,#507ee9 6%,#628ced 10%,#7aa0f2 14%,#97b6f6 18%,#b5ccfa 22%,#cfdffd 26%,#e2ecff 30%,#e9f1ff 34%,#eef6ff 50%,#eaf3fb 66%,#e3eefb 70%,#d0e0fa 74%,#b5cdf8 78%,#97b7f5 82%,#7aa1f1 86%,#628ced 90%,#507ee9 94%,#4a78e8 98%,#4a78e8 100%);
   --campos:
-    radial-gradient(44vmax 26vmax at 10% 36%, rgb(255 158 205 / .72), transparent 70%),
-    radial-gradient(40vmax 28vmax at 90% 40%, rgb(127 207 255 / .70), transparent 70%),
-    radial-gradient(48vmax 20vmax at 32% 58%, rgb(255 212 154 / .66), transparent 70%),
-    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / .62), transparent 70%),
-    radial-gradient(36vmax 22vmax at 18% 72%, rgb(201 166 255 / .62), transparent 70%),
-    radial-gradient(24vmax 30vmax at 58% 42%, rgb(255 184 168 / .50), transparent 70%),
-    radial-gradient(30vmax 18vmax at 92% 80%, rgb(169 200 255 / .56), transparent 70%);
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(127 184 255 / 0.72), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(111 224 240 / 0.66), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(154 168 255 / 0.6), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / 0.55), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(185 166 255 / 0.5), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(168 208 255 / 0.55), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(122 208 245 / 0.56), transparent 70%);
   --text:#1c1c1e; --forte:#0a0b0d; --sub:rgba(0,0,0,.6);
   --vidro:rgba(238,240,245,.3); --frost:blur(5px) saturate(1.15);
   --bloco:rgba(255,255,255,.55); --linha:rgba(0,0,0,.12);
@@ -168,16 +168,16 @@ function documento({ titulo, link, quando, conteudo, idioma }) {
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --page-edge:#1b1646;
-  --base:linear-gradient(180deg,#1b1646 0%,#281f6a 12%,#1d2a60 28%,#16304d 50%,#2b1e58 72%,#281f6a 88%,#1b1646 100%);
+  --page-edge:#0d1838;
+  --base:linear-gradient(180deg,#0d1838 0%,#0d1838 2%,#0d1939 6%,#0e1b3d 10%,#0f1e43 14%,#10214a 18%,#112450 22%,#122756 26%,#13295a 30%,#132a5c 34%,#0f2f4f 50%,#161f52 66%,#161f51 70%,#151e4e 74%,#131d4a 78%,#111c45 82%,#101a40 86%,#0e193c 90%,#0d1839 94%,#0d1838 98%,#0d1838 100%);
   --campos:
-    radial-gradient(44vmax 26vmax at 10% 36%, rgb(214 70 160 / .44), transparent 70%),
-    radial-gradient(40vmax 28vmax at 90% 40%, rgb(40 160 220 / .42), transparent 70%),
-    radial-gradient(48vmax 20vmax at 32% 58%, rgb(230 140 60 / .28), transparent 70%),
-    radial-gradient(34vmax 24vmax at 76% 66%, rgb(40 200 170 / .32), transparent 70%),
-    radial-gradient(36vmax 22vmax at 18% 72%, rgb(120 80 230 / .42), transparent 70%),
-    radial-gradient(24vmax 30vmax at 58% 42%, rgb(200 80 140 / .28), transparent 70%),
-    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 120 220 / .34), transparent 70%);
+    radial-gradient(44vmax 26vmax at 10% 36%, rgb(47 111 224 / 0.44), transparent 70%),
+    radial-gradient(40vmax 28vmax at 90% 40%, rgb(31 168 200 / 0.42), transparent 70%),
+    radial-gradient(48vmax 20vmax at 32% 58%, rgb(75 80 216 / 0.36), transparent 70%),
+    radial-gradient(34vmax 24vmax at 76% 66%, rgb(31 184 154 / 0.28), transparent 70%),
+    radial-gradient(36vmax 22vmax at 18% 72%, rgb(106 79 216 / 0.3), transparent 70%),
+    radial-gradient(24vmax 30vmax at 58% 42%, rgb(42 138 208 / 0.32), transparent 70%),
+    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 124 224 / 0.34), transparent 70%);
   --text:#f5f5f7; --forte:#fff; --sub:rgba(255,255,255,.6);
   --vidro:rgba(18,18,20,.3); --bloco:rgba(0,0,0,.32); --linha:rgba(255,255,255,.14);
   color-scheme:dark;
@@ -217,9 +217,9 @@ hr{border:0;border-top:1px solid var(--linha);margin:2rem 0}
 @media print{
   html::after{display:none}
   body{padding:14mm 12mm;font-family:"DejaVu Sans","Liberation Sans",sans-serif}
-  main{max-width:none;background:#fbfaff;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
+  main{max-width:none;background:#f8fbff;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
     -webkit-box-decoration-break:clone;box-decoration-break:clone}
-  :root{--bloco:#efedf7;--linha:#dedbe9;--sub:#55536a}
+  :root{--bloco:#e9f0fb;--linha:#d6e0ef;--sub:#4f5d72}
   pre,pre code,code,.marca{font-family:"DejaVu Sans Mono","Liberation Mono",monospace}
   pre{white-space:pre-wrap;break-inside:avoid}
   h1,h2,h3,h4{break-after:avoid}
