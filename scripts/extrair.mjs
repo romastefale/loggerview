@@ -136,9 +136,11 @@ function escapar(texto) {
   return texto.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 }
 
-// O HTML e o PDF têm o visual do app: o fundo de manchas, o card de vidro e a
-// marca ❯_loggerview. O PDF é este mesmo HTML impresso, com o vidro trocado por
-// um branco translúcido (desfoque não imprime bem).
+// O HTML e o PDF são uma folha de leitura: fundo neutro (branco; quase preto no
+// modo escuro do HTML), sem degradê nem vidro, porque o foco é o conteúdo. Nada
+// pode cortar na impressão: tabelas ocupam a largura da folha e quebram o texto
+// nas células, código e palavras longas quebram a linha. O PDF usa fontes DejaVu
+// (as da máquina do GitHub), que qualquer leitor de PDF desenha.
 function documento({ titulo, link, quando, conteudo, idioma }) {
   return `<!doctype html>
 <html lang="${escapar(idioma || "en")}">
@@ -150,79 +152,63 @@ function documento({ titulo, link, quando, conteudo, idioma }) {
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%9D%AF&display=swap">
 <style>
 :root{
-  --page-edge:#4a78e8;
-  --base:linear-gradient(180deg,#4a78e8 0%,#4a78e8 2%,#507ee9 6%,#628ced 10%,#7aa0f2 14%,#97b6f6 18%,#b5ccfa 22%,#cfdffd 26%,#e2ecff 30%,#e9f1ff 34%,#eef6ff 50%,#eaf3fb 66%,#e3eefb 70%,#d0e0fa 74%,#b5cdf8 78%,#97b7f5 82%,#7aa1f1 86%,#628ced 90%,#507ee9 94%,#4a78e8 98%,#4a78e8 100%);
-  --campos:
-    radial-gradient(44vmax 26vmax at 10% 36%, rgb(127 184 255 / 0.72), transparent 70%),
-    radial-gradient(40vmax 28vmax at 90% 40%, rgb(111 224 240 / 0.66), transparent 70%),
-    radial-gradient(48vmax 20vmax at 32% 58%, rgb(154 168 255 / 0.6), transparent 70%),
-    radial-gradient(34vmax 24vmax at 76% 66%, rgb(142 240 210 / 0.55), transparent 70%),
-    radial-gradient(36vmax 22vmax at 18% 72%, rgb(185 166 255 / 0.5), transparent 70%),
-    radial-gradient(24vmax 30vmax at 58% 42%, rgb(168 208 255 / 0.55), transparent 70%),
-    radial-gradient(30vmax 18vmax at 92% 80%, rgb(122 208 245 / 0.56), transparent 70%);
-  --text:#1c1c1e; --forte:#0a0b0d; --sub:rgba(0,0,0,.6);
-  --vidro:rgba(238,240,245,.3); --frost:blur(5px) saturate(1.15);
-  --bloco:rgba(255,255,255,.55); --linha:rgba(0,0,0,.12);
-  --sombra:0 10px 28px rgba(30,20,90,.16), 0 2px 6px rgba(30,20,90,.08);
+  --fundo:#fff; --text:#1c1c1e; --forte:#0a0b0d; --sub:#5b6270;
+  --bloco:#f3f5f8; --linha:#dde2ea; --cabeca:#eef1f5;
   --mono:"JetBrains Mono",ui-monospace,monospace;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --page-edge:#0d1838;
-  --base:linear-gradient(180deg,#0d1838 0%,#0d1838 2%,#0d1939 6%,#0e1b3d 10%,#0f1e43 14%,#10214a 18%,#112450 22%,#122756 26%,#13295a 30%,#132a5c 34%,#0f2f4f 50%,#161f52 66%,#161f51 70%,#151e4e 74%,#131d4a 78%,#111c45 82%,#101a40 86%,#0e193c 90%,#0d1839 94%,#0d1838 98%,#0d1838 100%);
-  --campos:
-    radial-gradient(44vmax 26vmax at 10% 36%, rgb(47 111 224 / 0.44), transparent 70%),
-    radial-gradient(40vmax 28vmax at 90% 40%, rgb(31 168 200 / 0.42), transparent 70%),
-    radial-gradient(48vmax 20vmax at 32% 58%, rgb(75 80 216 / 0.36), transparent 70%),
-    radial-gradient(34vmax 24vmax at 76% 66%, rgb(31 184 154 / 0.28), transparent 70%),
-    radial-gradient(36vmax 22vmax at 18% 72%, rgb(106 79 216 / 0.3), transparent 70%),
-    radial-gradient(24vmax 30vmax at 58% 42%, rgb(42 138 208 / 0.32), transparent 70%),
-    radial-gradient(30vmax 18vmax at 92% 80%, rgb(60 124 224 / 0.34), transparent 70%);
-  --text:#f5f5f7; --forte:#fff; --sub:rgba(255,255,255,.6);
-  --vidro:rgba(18,18,20,.3); --bloco:rgba(0,0,0,.32); --linha:rgba(255,255,255,.14);
+  --fundo:#121417; --text:#e9ebef; --forte:#fff; --sub:#a3aab6;
+  --bloco:#1c2026; --linha:#2e343d; --cabeca:#1a1e24;
   color-scheme:dark;
 }}
 *{box-sizing:border-box}
-html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
-html::before{background:var(--base)}
-html::after{background:var(--campos);
-  -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
-          mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%)}
-body{margin:0;padding:clamp(16px,4vw,48px) max(16px,env(safe-area-inset-left));background-color:var(--page-edge);
-  color:var(--text);font:16px/1.65 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
-main{max-width:48rem;margin:0 auto;padding:clamp(22px,4vw,40px);border-radius:30px;background:var(--vidro);
-  -webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost);box-shadow:var(--sombra)}
-.marca{margin:0 0 1.2rem;font:700 15px/1 var(--mono);letter-spacing:-.03em;color:var(--forte)}
+body{margin:0;background:var(--fundo);color:var(--text);
+  font:16px/1.65 system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+main{max-width:48rem;margin:0 auto;padding:clamp(20px,5vw,48px) max(16px,env(safe-area-inset-left))}
+.marca{margin:0 0 1.2rem;font:700 14px/1 var(--mono);letter-spacing:-.03em;color:var(--sub)}
 .marca .chev{font-family:"Noto Sans Symbols 2",sans-serif;font-weight:400;font-size:.837em;vertical-align:.075em}
 header{margin-bottom:1.8rem;padding-bottom:1.2rem;border-bottom:1px solid var(--linha)}
 header h1{margin:0 0 .5rem;font-size:clamp(1.6rem,4vw,2.1rem);line-height:1.2;letter-spacing:-.02em;color:var(--forte)}
 header p{margin:0;font-size:.9rem;color:var(--sub);overflow-wrap:anywhere}
 h1,h2,h3,h4,h5,h6{color:var(--forte);line-height:1.25;letter-spacing:-.01em;margin:1.8em 0 .6em}
 a{color:inherit;text-underline-offset:2px}
-img,video{max-width:100%;height:auto;border-radius:12px}
-code{font-family:var(--mono);font-size:.88em;padding:.1em .35em;border-radius:6px;background:var(--bloco)}
-pre{overflow-x:auto;padding:1rem 1.1rem;border-radius:16px;background:var(--bloco);white-space:pre;line-height:1.5}
+img,video{max-width:100%;height:auto}
+code{font-family:var(--mono);font-size:.88em;padding:.1em .35em;border-radius:5px;background:var(--bloco);overflow-wrap:anywhere}
+pre{overflow-x:auto;padding:.9rem 1rem;border-radius:10px;background:var(--bloco);border:1px solid var(--linha);white-space:pre;line-height:1.5}
 pre,pre code{font-family:var(--mono);font-size:.85rem}
-pre code{padding:0;background:none}
-blockquote{margin:1.2rem 0;padding:.2rem 1.1rem;border-left:3px solid var(--sub);color:var(--sub)}
-table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}
-th,td{border:1px solid var(--linha);padding:.4rem .7rem;text-align:left}
+pre code{padding:0;background:none;overflow-wrap:normal}
+blockquote{margin:1.2rem 0;padding:.1rem 1rem;border-left:3px solid var(--linha);color:var(--sub)}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92em}
+th,td{border:1px solid var(--linha);padding:.45rem .6rem;text-align:left;vertical-align:top;overflow-wrap:break-word}
+th{background:var(--cabeca);font-weight:600;color:var(--forte)}
+/* Tela estreita: uma tabela de várias colunas não cabe. Cada linha vira um bloco,
+   com as células uma embaixo da outra (a primeira em destaque), na largura da tela,
+   sem rolagem nem corte. Na folha (PDF) e em telas largas continua tabela, e só
+   quebra a palavra que sozinha não cabe. */
+@media screen and (max-width:640px){
+  table,tbody,tr,td,th{display:block;width:auto}
+  thead{display:none}
+  table{border:0}
+  tr{border:1px solid var(--linha);border-radius:10px;padding:.55rem .75rem;margin:0 0 .6rem}
+  th,td{border:0;padding:.1rem 0;overflow-wrap:anywhere}
+  tr>:first-child{font-weight:600;color:var(--forte)}
+  tr>:nth-child(2):not(:last-child){font-size:.88em;color:var(--sub)}
+}
 hr{border:0;border-top:1px solid var(--linha);margin:2rem 0}
-@page{size:A4;margin:0}
-/* Impressão (o PDF): só recursos que qualquer visualizador desenha. Sem as manchas
-   com máscara e sem transparência (viram máscaras e grupos que vários leitores
-   de PDF mostram em branco), cores sólidas, e fontes DejaVu (as da máquina do
-   GitHub) no lugar da JetBrains Mono e da fonte do sistema, que o Chromium pode
-   embutir como fonte Type 3. */
+@page{size:A4;margin:16mm 14mm}
 @media print{
-  html::after{display:none}
-  body{padding:14mm 12mm;font-family:"DejaVu Sans","Liberation Sans",sans-serif}
-  main{max-width:none;background:#f8fbff;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
-    -webkit-box-decoration-break:clone;box-decoration-break:clone}
-  :root{--bloco:#e9f0fb;--linha:#d6e0ef;--sub:#4f5d72}
+  :root{--fundo:#fff;--text:#1c1c1e;--forte:#000;--sub:#555b66;--bloco:#f3f5f8;--linha:#d5dae2;--cabeca:#eef1f5;color-scheme:light}
+  body{font-family:"DejaVu Sans","Liberation Sans",sans-serif;font-size:10.5pt;line-height:1.55}
+  main{max-width:none;padding:0}
   pre,pre code,code,.marca{font-family:"DejaVu Sans Mono","Liberation Mono",monospace}
-  pre{white-space:pre-wrap;break-inside:avoid}
+  pre{white-space:pre-wrap;overflow:visible;font-size:8.5pt}
+  pre code{overflow-wrap:anywhere}
+  table{font-size:9pt}
+  thead{display:table-header-group}
+  tr,img{break-inside:avoid}
   h1,h2,h3,h4{break-after:avoid}
+  a{color:inherit}
 }
 </style>
 </head>
