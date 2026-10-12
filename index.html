@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#8b82e6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1646" media="(prefers-color-scheme: dark)">
 <title>Logger View</title>
@@ -52,9 +52,9 @@
   --focus:rgba(245,245,247,.62);
   color-scheme:dark;
 }}
-html{background-color:transparent}
+html{background-color:var(--page-edge);isolation:isolate}
 html,body{touch-action:pan-x pan-y}
-html::before,html::after{content:"";position:fixed;z-index:-1;left:0;right:0;top:0;height:100vh;height:100lvh;pointer-events:none}
+html::before,html::after{content:"";position:fixed;z-index:-1;left:var(--visual-viewport-offset-left,0px);right:auto;width:var(--viewport-width,100%);top:var(--visual-viewport-offset-top,0px);height:100vh;height:100lvh;pointer-events:none}
 html::before{background:var(--base)}
 html::after{background:var(--campos);
   -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
@@ -69,14 +69,14 @@ html::after{background:var(--campos);
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;
   padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
-  color:var(--text);background-color:var(--page-edge);
+  color:var(--text);background-color:transparent;
   font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
 /* Durante a edição, a posição e a altura acompanham a área realmente visível. */
 html.campo-em-edicao{overflow:hidden;overscroll-behavior:none}
-body.campo-em-edicao{position:fixed;top:0;left:0;width:var(--viewport-width,100%);
-  height:var(--viewport-height,100svh);min-height:0;overflow:hidden;
-  place-items:start center;overscroll-behavior:none;
-  transform:translate3d(var(--viewport-shift-x,0px),var(--viewport-shift-y,0px),0)}
+body.campo-em-edicao{position:fixed;top:var(--visual-viewport-offset-top,0px);left:var(--visual-viewport-offset-left,0px);
+  width:var(--viewport-width,100%);height:var(--viewport-height,100svh);min-height:0;overflow:hidden;
+  place-items:start center;padding-top:var(--card-screen-top,16px);
+  overscroll-behavior:none}
 button{font:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 .frost{background:var(--vidro-tint);-webkit-backdrop-filter:var(--frost);backdrop-filter:var(--frost)}
@@ -275,49 +275,158 @@ document.querySelectorAll("[data-dl]").forEach((botao) =>
   }),
 );
 
-// Mantém o campo visível enquanto o teclado está aberto, sem rolar o documento.
+// O Safari pode deslocar a viewport visual ao abrir o teclado sem alterar scrollY.
+// A posição do cartão é registrada ANTES do foco por ponteiro; foco por teclado ou
+// tecnologia assistiva usa o próprio evento focus como alternativa.
 const campoLink = $("#link");
 const raiz = document.documentElement;
+const cartao = $(".card");
+const corpo = document.body;
+const DELTA_MINIMA_TECLADO = 100;
 let frameViewport = 0;
+let topoOriginalCartao = 0;
+let margemTopoSegura = 16;
+let scrollBloqueadoX = 0;
+let scrollBloqueadoY = 0;
+let alturaViewportAntesDoTeclado = window.visualViewport?.height ?? window.innerHeight;
+let snapshotPreFocoPronto = false;
+
+function capturarEstadoAntesDoFoco() {
+  scrollBloqueadoX = window.scrollX;
+  scrollBloqueadoY = window.scrollY;
+  alturaViewportAntesDoTeclado = window.visualViewport?.height ?? window.innerHeight;
+  margemTopoSegura = Math.max(16, Number.parseFloat(getComputedStyle(corpo).paddingTop) || 0);
+  topoOriginalCartao = Math.max(margemTopoSegura, cartao.getBoundingClientRect().top);
+  raiz.style.setProperty("--card-screen-top", `${topoOriginalCartao}px`);
+  snapshotPreFocoPronto = true;
+}
+
+campoLink.addEventListener("pointerdown", () => {
+  if (!raiz.classList.contains("campo-em-edicao") && document.activeElement !== campoLink) {
+    capturarEstadoAntesDoFoco();
+  }
+});
+
+function impedirRolagemDuranteEdicao(evento) {
+  if (!raiz.classList.contains("campo-em-edicao")) return;
+  // O campo segue recebendo gestos de edição e seleção; a página externa não rola.
+  if (evento.target instanceof Element && evento.target.closest("#link")) return;
+  evento.preventDefault();
+}
+
+document.addEventListener("touchmove", impedirRolagemDuranteEdicao, { passive: false });
+
+function deslocamentoViewportVisual(eixo, viewport) {
+  const alturaAtual = viewport?.height ?? window.innerHeight;
+  const tecladoReduziuViewport = alturaViewportAntesDoTeclado - alturaAtual >= DELTA_MINIMA_TECLADO;
+  // Não reutiliza offsets após o teclado fechar: há relatos de valores transitórios no WebKit.
+  if (!viewport || !tecladoReduziuViewport) return 0;
+
+  const offset = eixo === "y" ? viewport.offsetTop : viewport.offsetLeft;
+  const pagina = eixo === "y" ? viewport.pageTop : viewport.pageLeft;
+  const scrollDocumento = eixo === "y" ? window.scrollY : window.scrollX;
+  const derivadoDaPagina = pagina - scrollDocumento;
+
+  // A geometria normal satisfaz pageTop = scrollY + offsetTop. Um relatório do WebKit
+  // descreve offsetTop subestimado em relação a pageTop no iOS 26; nesse caso, usa-se
+  // o deslocamento derivado da coordenada de página. Se não houver divergência útil,
+  // mantém-se o offset padrão e recorre-se ao outro valor apenas se ele for finito.
+  if (Number.isFinite(offset) && Number.isFinite(derivadoDaPagina)) {
+    if (derivadoDaPagina > offset + 1) return derivadoDaPagina;
+    return offset;
+  }
+  if (Number.isFinite(derivadoDaPagina)) return derivadoDaPagina;
+  return Number.isFinite(offset) ? offset : 0;
+}
+
+function restaurarPosicaoDocumento() {
+  if (!raiz.classList.contains("campo-em-edicao")) return;
+  if (Math.abs(window.scrollX - scrollBloqueadoX) > 1 ||
+      Math.abs(window.scrollY - scrollBloqueadoY) > 1) {
+    window.scrollTo(scrollBloqueadoX, scrollBloqueadoY);
+  }
+}
 
 function sincronizarViewportDoCampo() {
   if (!raiz.classList.contains("campo-em-edicao")) return;
   if (frameViewport) cancelAnimationFrame(frameViewport);
   frameViewport = requestAnimationFrame(() => {
     frameViewport = 0;
+    if (!raiz.classList.contains("campo-em-edicao")) return;
     const viewport = window.visualViewport;
-    raiz.style.setProperty("--viewport-height", `${viewport?.height ?? window.innerHeight}px`);
-    raiz.style.setProperty("--viewport-width", `${viewport?.width ?? window.innerWidth}px`);
+    const alturaViewport = Math.max(1, viewport?.height ?? window.innerHeight);
+    const larguraViewport = Math.max(1, viewport?.width ?? window.innerWidth);
+    const deslocamentoTopo = deslocamentoViewportVisual("y", viewport);
+    const deslocamentoEsquerda = deslocamentoViewportVisual("x", viewport);
 
-    // Mede a posição sem transformação para compensar deslocamentos da viewport visual.
-    const transformAtual = document.body.style.transform;
-    document.body.style.transform = "none";
-    const limites = document.body.getBoundingClientRect();
-    raiz.style.setProperty("--viewport-shift-x", `${-limites.left}px`);
-    raiz.style.setProperty("--viewport-shift-y", `${-limites.top}px`);
-    document.body.style.transform = transformAtual;
+    raiz.style.setProperty("--viewport-height", `${alturaViewport}px`);
+    raiz.style.setProperty("--viewport-width", `${larguraViewport}px`);
+    raiz.style.setProperty("--visual-viewport-offset-top", `${deslocamentoTopo}px`);
+    raiz.style.setProperty("--visual-viewport-offset-left", `${deslocamentoEsquerda}px`);
+
+    // Corrige o deslocamento residual usando a posição realmente renderizada do body.
+    // Isso não depende exclusivamente de offsetTop, que pode divergir de pageTop no WebKit.
+    const limitesCorpo = corpo.getBoundingClientRect();
+    const topoCorrigido = deslocamentoTopo - limitesCorpo.top;
+    const esquerdaCorrigida = deslocamentoEsquerda - limitesCorpo.left;
+    if (Number.isFinite(topoCorrigido)) {
+      raiz.style.setProperty("--visual-viewport-offset-top", `${Math.abs(topoCorrigido) < 0.5 ? 0 : topoCorrigido}px`);
+    }
+    if (Number.isFinite(esquerdaCorrigida)) {
+      raiz.style.setProperty("--visual-viewport-offset-left", `${Math.abs(esquerdaCorrigida) < 0.5 ? 0 : esquerdaCorrigida}px`);
+    }
+
+    // Mantém o cartão no ponto original; só o move para cima quando ele não cabe
+    // inteiro na área visível acima do teclado. Se não couber, prioriza o topo seguro.
+    const alturaCartao = cartao.getBoundingClientRect().height;
+    const margemInferior = 16;
+    const topoMaximo = Math.max(margemTopoSegura, alturaViewport - alturaCartao - margemInferior);
+    const topoCard = Math.max(margemTopoSegura, Math.min(topoOriginalCartao, topoMaximo));
+    raiz.style.setProperty("--card-screen-top", `${topoCard}px`);
   });
 }
 
 campoLink.addEventListener("focus", () => {
-  raiz.classList.add("campo-em-edicao");
-  document.body.classList.add("campo-em-edicao");
+  if (!raiz.classList.contains("campo-em-edicao")) {
+    // Para foco programático/teclado, não houve pointerdown: registra o estado aqui.
+    if (!snapshotPreFocoPronto) capturarEstadoAntesDoFoco();
+    snapshotPreFocoPronto = false;
+    raiz.classList.add("campo-em-edicao");
+    corpo.classList.add("campo-em-edicao");
+  }
   sincronizarViewportDoCampo();
 });
 
 campoLink.addEventListener("blur", () => {
   window.setTimeout(() => {
     if (document.activeElement === campoLink) return;
+    if (frameViewport) cancelAnimationFrame(frameViewport);
+    frameViewport = 0;
     raiz.classList.remove("campo-em-edicao");
-    document.body.classList.remove("campo-em-edicao");
-    ["--viewport-height", "--viewport-width", "--viewport-shift-x", "--viewport-shift-y"]
+    corpo.classList.remove("campo-em-edicao");
+    ["--viewport-height", "--viewport-width", "--visual-viewport-offset-top", "--visual-viewport-offset-left", "--card-screen-top"]
       .forEach((propriedade) => raiz.style.removeProperty(propriedade));
+    if (window.scrollX !== scrollBloqueadoX || window.scrollY !== scrollBloqueadoY) {
+      window.scrollTo(scrollBloqueadoX, scrollBloqueadoY);
+    }
+    alturaViewportAntesDoTeclado = window.visualViewport?.height ?? window.innerHeight;
+    snapshotPreFocoPronto = false;
   }, 300);
 });
 
-window.visualViewport?.addEventListener("resize", sincronizarViewportDoCampo);
+function aoRedimensionarViewport() {
+  if (raiz.classList.contains("campo-em-edicao")) {
+    sincronizarViewportDoCampo();
+  } else {
+    alturaViewportAntesDoTeclado = window.visualViewport?.height ?? window.innerHeight;
+  }
+}
+
+window.addEventListener("scroll", restaurarPosicaoDocumento, { passive: true });
+window.visualViewport?.addEventListener("resize", aoRedimensionarViewport);
 window.visualViewport?.addEventListener("scroll", sincronizarViewportDoCampo);
-window.addEventListener("resize", sincronizarViewportDoCampo);
+window.addEventListener("resize", aoRedimensionarViewport);
+
 </script>
 </body>
 </html>
