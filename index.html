@@ -299,7 +299,7 @@ st.erro.addEventListener("click", () => ($("#motivo").hidden = !$("#motivo").hid
 // o teclado. O botão some depois de colar e volta se o texto colado mudar em
 // qualquer caractere. Sem a API da área de transferência, o botão não aparece.
 let colado = null;
-const podeColar = !!navigator.clipboard?.readText;
+const podeColar = !!navigator.clipboard?.read;
 
 function atualizarColar() {
   const visivel = podeColar && $("#link").value !== colado;
@@ -313,22 +313,32 @@ $("#link").addEventListener("input", () => {
   atualizarColar();
 });
 
+// Lê tudo o que a área de transferência guarda como texto. Um link copiado pelo
+// "Copiar link" do iOS vem como text/uri-list, e o readText() devolve vazio.
+async function lerAreaDeTransferencia() {
+  const textos = [];
+  for (const item of await navigator.clipboard.read()) {
+    for (const tipo of ["text/uri-list", "text/plain"]) {
+      if (item.types.includes(tipo)) textos.push(await (await item.getType(tipo)).text());
+    }
+  }
+  return textos.join("\n");
+}
+
 $("#colar").addEventListener("click", async () => {
   let texto;
   try {
-    texto = (await navigator.clipboard.readText()).trim();
+    texto = await lerAreaDeTransferencia();
   } catch {
     return estado("erro", "Não consegui ler a área de transferência. Cole no campo.");
   }
-  let url = null;
-  try {
-    url = new URL(texto);
-  } catch {}
-  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
-    return estado("erro", "A área de transferência não tem um link.");
+  // O link pode vir junto de outro texto, como o título que alguns apps copiam.
+  const link = texto.match(/https?:\/\/[^\s<>"]+/)?.[0];
+  if (!link) {
+    return estado("erro", texto.trim() ? "A área de transferência não tem um link." : "A área de transferência está vazia.");
   }
-  $("#link").value = texto;
-  colado = texto;
+  $("#link").value = link;
+  colado = link;
   atualizarColar();
   estado("vazio");
 });
