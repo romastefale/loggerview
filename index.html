@@ -133,6 +133,14 @@ button{font:inherit;cursor:pointer}
 .lupa{position:absolute;top:.5625em;right:.5625em;width:2.125em;height:2.125em;border-radius:1.06em;border:0;padding:0;
   display:grid;place-items:center;color:var(--bar-text);box-shadow:var(--glass-float)}
 .lupa svg{width:.94em;height:.94em}
+/* Colar: ao lado da lupa, com o mesmo vidro e a mesma sombra. Some depois de colar e
+   volta se o texto colado mudar; colar de novo substitui o campo inteiro. */
+.colar{position:absolute;top:.5625em;right:3.0625em;width:2.125em;height:2.125em;border-radius:1.06em;border:0;padding:0;
+  display:grid;place-items:center;color:var(--bar-text);box-shadow:var(--glass-float)}
+.colar svg{width:.94em;height:.94em}
+.colar[hidden]{display:none}
+.colar:disabled{cursor:default;opacity:.55}
+.pill-bar.com-colar .page-search{right:5.56em}
 .lupa:disabled{cursor:default;opacity:.55}
 
 .downloads{display:flex;flex-wrap:wrap;justify-content:center;gap:.625em}
@@ -167,6 +175,9 @@ button{font:inherit;cursor:pointer}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>
       </button>
     </form>
+    <button class="colar frost" type="button" id="colar" aria-label="Colar link" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/></svg>
+    </button>
     <button class="lupa frost" type="submit" form="form" id="lupa" aria-label="Baixar">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
     </button>
@@ -209,6 +220,7 @@ function estado(qual, motivo = "") {
   for (const [k, el] of Object.entries(st)) el.hidden = k !== qual;
   $("#sep").hidden = qual === "vazio";
   $("#lupa").disabled = qual === "carregando";
+  $("#colar").disabled = qual === "carregando";
   $("#motivo").textContent = motivo;
   $("#motivo").hidden = true;
   document.querySelectorAll("[data-dl]").forEach((b) => (b.disabled = qual !== "pronto"));
@@ -280,6 +292,46 @@ $("#form").addEventListener("submit", (e) => {
 });
 
 st.erro.addEventListener("click", () => ($("#motivo").hidden = !$("#motivo").hidden));
+
+// Colar: lê a área de transferência e substitui o campo inteiro pelo link, sem abrir
+// o teclado. O botão some depois de colar e volta se o texto colado mudar em
+// qualquer caractere. Sem a API da área de transferência, o botão não aparece.
+let colado = null;
+const podeColar = !!navigator.clipboard?.readText;
+
+function atualizarColar() {
+  const visivel = podeColar && $("#link").value !== colado;
+  $("#colar").hidden = !visivel;
+  $(".pill-bar").classList.toggle("com-colar", visivel);
+}
+
+$("#link").addEventListener("input", () => {
+  // Mexer no link apaga o alerta anterior: ele valia para o link de antes.
+  if (!st.erro.hidden) estado("vazio");
+  atualizarColar();
+});
+
+$("#colar").addEventListener("click", async () => {
+  let texto;
+  try {
+    texto = (await navigator.clipboard.readText()).trim();
+  } catch {
+    return estado("erro", "Não consegui ler a área de transferência. Cole no campo.");
+  }
+  let url = null;
+  try {
+    url = new URL(texto);
+  } catch {}
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
+    return estado("erro", "A área de transferência não tem um link.");
+  }
+  $("#link").value = texto;
+  colado = texto;
+  atualizarColar();
+  estado("vazio");
+});
+
+atualizarColar();
 
 document.querySelectorAll("[data-dl]").forEach((botao) =>
   botao.addEventListener("click", async () => {
