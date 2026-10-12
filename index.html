@@ -74,6 +74,12 @@ html{background-color:var(--page-edge);isolation:isolate}
 html,body{touch-action:pan-x pan-y}
 html::before,html::after{content:"";position:fixed;z-index:-1;left:var(--visual-viewport-offset-left,0px);right:auto;width:var(--viewport-width,100%);top:var(--visual-viewport-offset-top,0px);height:100vh;height:100lvh;pointer-events:none}
 html::before{background:var(--base)}
+/* Com o teclado aberto, o fundo ocupa só a área visível: o degradê e as manchas se
+   reorganizam nela, com as pontas sólidas no topo e logo acima do teclado. A
+   transição curta acompanha a animação do teclado em vez de pular. */
+html.campo-em-edicao::before,html.campo-em-edicao::after{height:var(--viewport-height,100lvh)}
+html::before,html::after{transition:height .25s ease-out}
+@media (prefers-reduced-motion:reduce){html::before,html::after{transition:none}}
 html::after{background:var(--campos);
   -webkit-mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%);
           mask-image:linear-gradient(180deg,transparent 0 14%,#000 30% 70%,transparent 86% 100%)}
@@ -394,12 +400,10 @@ function sincronizarViewportDoCampo() {
       raiz.style.setProperty("--visual-viewport-offset-left", `${Math.abs(esquerdaCorrigida) < 0.5 ? 0 : esquerdaCorrigida}px`);
     }
 
-    // Mantém o cartão no ponto original; só o move para cima quando ele não cabe
-    // inteiro na área visível acima do teclado. Se não couber, prioriza o topo seguro.
+    // Centraliza o cartão na área visível acima do teclado. Se ele não couber
+    // inteiro, prioriza o topo seguro.
     const alturaCartao = cartao.getBoundingClientRect().height;
-    const margemInferior = 16;
-    const topoMaximo = Math.max(margemTopoSegura, alturaViewport - alturaCartao - margemInferior);
-    const topoCard = Math.max(margemTopoSegura, Math.min(topoOriginalCartao, topoMaximo));
+    const topoCard = Math.max(margemTopoSegura, (alturaViewport - alturaCartao) / 2);
     raiz.style.setProperty("--card-screen-top", `${topoCard}px`);
   });
 }
