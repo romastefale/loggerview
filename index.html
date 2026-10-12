@@ -276,14 +276,24 @@ async function motivoDaFalha(id) {
   return "A extração falhou.";
 }
 
+// Acha o link no texto, mesmo sem "https://" (core.telegram.org/bots/webapps)
+// ou no meio de outro texto, como o título que alguns apps copiam junto.
+function acharLink(texto) {
+  const achado =
+    texto.match(/https?:\/\/[^\s<>"]+/i)?.[0] ??
+    texto.match(/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"]*)?/i)?.[0];
+  if (!achado) return null;
+  try {
+    return new URL(/^https?:\/\//i.test(achado) ? achado : `https://${achado}`).href;
+  } catch {
+    return null;
+  }
+}
+
 $("#form").addEventListener("submit", (e) => {
   e.preventDefault();
-  let link;
-  try {
-    link = new URL($("#link").value.trim()).href;
-  } catch {
-    return estado("erro", "Esse link não é válido.");
-  }
+  const link = acharLink($("#link").value);
+  if (!link) return estado("erro", "Esse link não é válido.");
   nome = slug(link);
   versao = novaVersao();
   const pedido = new URLSearchParams({ title: `extrair ${versao}`, body: link });
@@ -332,8 +342,7 @@ $("#colar").addEventListener("click", async () => {
   } catch {
     return estado("erro", "Não consegui ler a área de transferência. Cole no campo.");
   }
-  // O link pode vir junto de outro texto, como o título que alguns apps copiam.
-  const link = texto.match(/https?:\/\/[^\s<>"]+/)?.[0];
+  const link = acharLink(texto);
   if (!link) {
     return estado("erro", texto.trim() ? "A área de transferência não tem um link." : "A área de transferência está vazia.");
   }
